@@ -639,6 +639,49 @@ describe("comments on issues and pull requests", () => {
     });
   });
 
+  it("forget a comment whose notice failed, so that the next delivery notifies", async () => {
+    const w = await shown();
+    let busy = true;
+    w.net.on("POST", /\/sendMessage$/, () =>
+      busy
+        ? json(
+            { ok: false, description: "Too Many Requests: retry after 5" },
+            429,
+          )
+        : undefined,
+    );
+    await expect(apply(w.context, commented(99))).rejects.toThrow(
+      "Too Many Requests",
+    );
+    // The thing knew of no comment before, and still knows of none.
+    expect(await thing(w)).not.toHaveProperty("comment");
+    busy = false;
+    expect(await apply(w.context, commented(99))).toBe(
+      "comment shown in place",
+    );
+    expect(w.net.telegram("sendMessage").at(-1)?.body.text).toBe(
+      `💬 <b>hubot</b> commented: <a href="${ISSUE}#issuecomment-99">#12 It breaks</a>`,
+    );
+    // A later comment whose notice fails gives back the comment that the thing knew.
+    w.clock.now = START + QUIET;
+    busy = true;
+    await expect(apply(w.context, commented(100, "octocat"))).rejects.toThrow(
+      "Too Many Requests",
+    );
+    expect((await thing(w)).comment).toEqual({ id: 99, noticed: START });
+    busy = false;
+    expect(await apply(w.context, commented(100, "octocat"))).toBe(
+      "comment shown in place",
+    );
+    expect((await thing(w)).comment).toEqual({
+      id: 100,
+      noticed: START + QUIET,
+    });
+    expect(w.net.telegram("sendMessage").at(-1)?.body.text).toBe(
+      `💬 <b>octocat</b> commented: <a href="${ISSUE}#issuecomment-100">#12 It breaks</a>`,
+    );
+  });
+
   it("change nothing for the same comment twice", async () => {
     const w = await shown();
     await apply(w.context, commented());

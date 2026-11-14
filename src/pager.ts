@@ -857,6 +857,7 @@ async function comment(
   // The message quotes the comment now, which its reply answers.
   delete known.excerpt;
   Object.assign(known, excerptOf(signal));
+  const before = known.comment;
   known.comment = record(quiet ? last : now);
   known.note = null;
   // The comment needs the maintainer now, not once "Later" brings it back.
@@ -871,17 +872,31 @@ async function comment(
     // the new one, which names the comment, notified already.
     return `comment shown in a new message${outcome}`;
   }
-  await postBelow(
-    context,
-    known,
-    context.t(
-      signal.kind === "review" ? "message.newReview" : "message.newComment",
-      {
-        author: html(signal.author, 100),
-        link: link(`#${signal.number} ${signal.title}`, signal.url),
-      },
-    ),
-  );
+  try {
+    await postBelow(
+      context,
+      known,
+      context.t(
+        signal.kind === "review" ? "message.newReview" : "message.newComment",
+        {
+          author: html(signal.author, 100),
+          link: link(`#${signal.number} ${signal.title}`, signal.url),
+        },
+      ),
+    );
+  } catch (error) {
+    // Such as too many requests at once: the thing forgets the comment and its
+    // notice again, so that GitHub's next delivery of the event finds it new and
+    // sends the notice, as addEntry() does. The message names the comment already,
+    // and the delivery shows it in place once more.
+    if (before === undefined) {
+      delete known.comment;
+    } else {
+      known.comment = before;
+    }
+    await context.store.put(known);
+    throw error;
+  }
   return `comment shown in place${outcome}`;
 }
 
