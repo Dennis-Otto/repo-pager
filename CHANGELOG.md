@@ -7,6 +7,13 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.10.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.0...v0.10.1) (2026-11-15)
+
+
+### Bug fixes
+
+* a comment whose notice fails comes again with its notice ([#222](https://github.com/Dennis-Otto/repo-pager/issues/222)) ([dc400ab](https://github.com/Dennis-Otto/repo-pager/commit/dc400abb2bece7d40ccfa62290a5f61d3fca61f8))
+
 ## [0.10.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.9.1...v0.10.0) (2026-11-13)
 
 ### Features
