@@ -7,6 +7,12 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.10.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.0...v0.10.1) (2026-11-15)
+
+### Bug fixes
+
+- A new comment or review whose notice Telegram refuses, such as with too many requests at once, now comes again with its notice when GitHub delivers the event again, instead of being taken as noticed and staying quiet.
+
 ## [0.10.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.9.1...v0.10.0) (2026-11-13)
 
 ### Features
