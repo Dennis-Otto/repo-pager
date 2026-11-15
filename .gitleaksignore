@@ -1,0 +1,10 @@
+# Findings of gitleaks that are no secret, by their fingerprint: commit:file:rule:line.
+# Each one says why it is none. This file belongs to the project; .github/gitleaks.sh,
+# which reads it, belongs to the blueprint.
+
+# A made-up value of the tests of security alerts, which stood for a token that the pager
+# must never show. It is shorter than any personal access token of GitHub, which has 40
+# characters, and GitHub's secret scanning raised no alert for it. The commit is on the old branch
+# feat/n17-pager-security-reports, which never reached main; main makes its value at run
+# time since #98, so that no scan takes the test for a leak again.
+771cd0219e659cf86331056251a2c87d6277f85b:test/security.test.ts:generic-api-key:47
