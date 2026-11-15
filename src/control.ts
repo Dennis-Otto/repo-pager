@@ -304,8 +304,15 @@ function parse(body: string): Message | null {
   };
 }
 
-/** A note below a thing, with the footer of Claude on a line of its own. */
-function noted(text: string, usage: Usage | undefined, t: Texts): string {
+/**
+ * A note below a thing, with the footer of Claude on a line of its own; the
+ * pictures of the chat (test/chat.test.ts) show a fix's note with it.
+ */
+export function noted(
+  text: string,
+  usage: Usage | undefined,
+  t: Texts,
+): string {
   const line = footer(usage, t);
   return line === null ? text : `${text}\n${line}`;
 }
@@ -396,7 +403,7 @@ function whereIs(item: Item, t: Texts): string {
 }
 
 /** What a proposal shows: its answer, the action and the thing that it acts on. */
-interface Proposal {
+export interface Proposal {
   text: string;
   action: Labeled;
   target: Target;
@@ -404,18 +411,17 @@ interface Proposal {
 }
 
 /**
- * An answer that proposes one action: a message of its own in the thread given,
- * with a single ✅ Confirm button, whose data is that of the thing's own button. A
- * press runs it only while the thing still offers it, as any press does, and then
- * the button goes. Returns whether the message got its button.
+ * The message of an answer that proposes one action: the answer, and either the
+ * action with the thing that it acts on and a single ✅ Confirm button, whose data
+ * is that of the thing's own button, or why there is no button, when the pager
+ * doesn't know the thing or the thing no longer offers the action. The pictures of
+ * the chat (test/chat.test.ts) show it as the pager sends it.
  */
-async function propose(
-  context: Context,
+export function proposalMessage(
   message: Proposal,
   item: Item | null,
-  thread: Thread,
-): Promise<boolean> {
-  const { t } = context;
+  t: Texts,
+): { text: string; keyboard: Keyboard } {
   const lines = [`🤖 ${html(message.text, MAX_DRAFT)}`];
   const { target } = message;
   const named = html(label(t, message.action));
@@ -450,13 +456,29 @@ async function propose(
   if (line !== null) {
     lines.push(`<i>${html(line)}</i>`);
   }
+  return { text: lines.join("\n\n"), keyboard };
+}
+
+/**
+ * An answer that proposes one action: a message of its own in the thread given,
+ * with a single ✅ Confirm button. A press runs it only while the thing still
+ * offers it, as any press does, and then the button goes. Returns whether the
+ * message got its button.
+ */
+async function propose(
+  context: Context,
+  message: Proposal,
+  item: Item | null,
+  thread: Thread,
+): Promise<boolean> {
+  const { text, keyboard } = proposalMessage(message, item, context.t);
   const topic = item?.topic ?? null;
   if (item !== null && topic !== null && thread === topic.thread) {
     // In the thing's topic, which opens anew with the thing's own message first
     // when the maintainer deleted it.
-    await postBelow(context, item, lines.join("\n\n"), keyboard);
+    await postBelow(context, item, text, keyboard);
   } else {
-    await context.telegram.send(lines.join("\n\n"), keyboard, thread);
+    await context.telegram.send(text, keyboard, thread);
   }
   return keyboard.length > 0;
 }

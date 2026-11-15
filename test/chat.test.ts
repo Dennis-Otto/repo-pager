@@ -1,18 +1,22 @@
 // The pictures of the chat, docs/images/screenshots/chat-*.png, show messages of the
 // pager as Telegram shows them, in English and in German. .github/chat.html draws
 // them from .github/chat.js, which this test writes from render() of src/render.ts,
-// keyboard() of src/buttons.ts and topicName() of src/topics.ts, so the pictures
+// keyboard() of src/buttons.ts, topicName() of src/topics.ts and the answers of
+// src/control.ts (noted() and proposalMessage()), so the pictures
 // can't keep a word, an emoji or a button that the pager no longer has: a change of
 // a text fails here until `npx vitest run test/chat.test.ts --update` writes the
 // file anew, and the screenshot bot then renders the pictures anew.
 import { describe, expect, it } from "vitest";
 
 import { keyboard } from "../src/buttons.ts";
+import { noted, proposalMessage } from "../src/control.ts";
 import { render } from "../src/render.ts";
 import type { Alarm, Contribution, Item, Release } from "../src/store.ts";
+import { REACTIONS } from "../src/telegram.ts";
 import { LANGUAGES, type Language, type Texts, texts } from "../src/texts.ts";
 import { COLORS, topicName } from "../src/topics.ts";
 import { notesKey } from "../src/translations.ts";
+import type { Usage } from "../src/usage.ts";
 import { base, START } from "./helpers.ts";
 
 /** A message of the pager in the chat: its text, the labels of its buttons and its time. */
@@ -26,6 +30,13 @@ interface Message {
 /** A line of Telegram between messages, such as what a press changed. */
 interface Service {
   service: string;
+}
+
+/** A text of the maintainer, with its time and the reaction of the pager on it. */
+interface Own {
+  own: string;
+  time: string;
+  reaction: string;
 }
 
 /**
@@ -43,7 +54,7 @@ interface Row {
 interface Scene {
   title: string;
   subtitle: string;
-  messages?: (Message | Service)[];
+  messages?: (Message | Service | Own)[];
   topics?: Row[];
 }
 
@@ -53,21 +64,28 @@ interface Scene {
  */
 const TELEGRAM: Record<
   Language,
-  { edited: string; bot: string; after: string }
+  { edited: string; bot: string; after: string; later: string }
 > = {
   en: {
     edited: "edited",
     bot: "bot",
     after: "The same message, a minute after {button}",
+    later: "Twelve minutes after {button}",
   },
   de: {
     edited: "bearbeitet",
     bot: "Bot",
     after: "Dieselbe Nachricht, eine Minute nach {button}",
+    later: "Zwölf Minuten nach {button}",
   },
 };
 
-/** What the things of the pictures say, which comes from GitHub, in each language. */
+/**
+ * What the things of the pictures say, which comes from GitHub, in each language,
+ * and what the control repository answers: its fix ends with the words and the
+ * address of its pull request, as pager/core.mjs of repo-pager-control-template
+ * writes them, and its answer to a question in a topic proposes 🔀 Merge.
+ */
 const SAYS = {
   en: {
     title: "Sync stops when a tag has a slash",
@@ -80,6 +98,10 @@ const SAYS = {
       "A share link for every synced document (#309)",
     ],
     question: "Which release goes first?",
+    fix: "🛠 The lock file pinned tar 6.2.0, which Socket Security flags; the fix moves it to 7.4.3 and runs the release again. The pull request: https://github.com/Dennis-Otto/repo-blueprint/pull/482",
+    asked: "Does 1.7.0 need anything from those who update from 1.6?",
+    answer:
+      "No: renamed tags follow by themselves, and the share links come for every document that syncs after the update. Every check is green, so 1.7.0 can go out.",
   },
   de: {
     title: "Sync bricht bei einem Tag mit Schrägstrich ab",
@@ -92,8 +114,31 @@ const SAYS = {
       "Ein Freigabelink für jedes synchronisierte Dokument (#309)",
     ],
     question: "Welches Release geht zuerst?",
+    fix: "🛠 Die Lock-Datei pinnte tar 6.2.0, das Socket Security meldet; der Fix hebt es auf 7.4.3 und startet das Release neu. Der Pull Request: https://github.com/Dennis-Otto/repo-blueprint/pull/482",
+    asked: "Braucht 1.7.0 etwas von denen, die von 1.6 aktualisieren?",
+    answer:
+      "Nein: umbenannte Tags folgen von selbst, und die Freigabelinks kommen für jedes Dokument, das nach dem Update synchronisiert. Alle Checks sind grün, 1.7.0 kann raus.",
   },
 } as const;
+
+/**
+ * What a run of Claude took, as the footer of an answer shows it, with the model and
+ * the effort that pager/core.mjs of the control template sets for each kind of job:
+ * a fix that becomes a pull request runs Opus at extra high effort, an answer to a
+ * free text Sonnet at high effort.
+ */
+const FIX_USAGE: Usage = {
+  turns: 31,
+  seconds: 694,
+  effort: "xhigh",
+  models: [{ model: "claude-opus-5-5", tokens: 412_000 }],
+};
+const ANSWER_USAGE: Usage = {
+  turns: 6,
+  seconds: 74,
+  effort: "high",
+  models: [{ model: "claude-sonnet-5-5", tokens: 58_000 }],
+};
 
 /** An alarm of main: a release that failed in a run, which 🔁 Rerun runs again, and a required check. */
 function alarm(t: Texts): Alarm {
@@ -224,10 +269,45 @@ function topics(language: Language, t: Texts): [Item, string][] {
   ];
 }
 
+/** A text of the maintainer that the pager answered. */
+function own(text: string, time: string): Own {
+  return { own: text, time, reaction: REACTIONS.answered };
+}
+
+/**
+ * The answer of the control repository to a question in the topic of a release:
+ * a message of its own with the one ✅ Confirm button that merges it.
+ */
+function answer(language: Language, t: Texts, time: string): Message {
+  const shipped = release(language);
+  const { text, keyboard: buttons } = proposalMessage(
+    {
+      text: SAYS[language].answer,
+      action: "merge",
+      target: { kind: "release", repo: shipped.repo },
+      usage: ANSWER_USAGE,
+    },
+    shipped,
+    t,
+  );
+  return {
+    text: text.replace(/<a href="[^"]*">/g, "<a>"),
+    buttons: buttons.map((row) => row.map((button) => button.text)),
+    time,
+  };
+}
+
 /** Every picture in one language. */
 function scenes(language: Language): Record<string, Scene> {
   const t = texts(language);
   const words = TELEGRAM[language];
+  // The alarm once its fix answered: a new message in its topic, with the note of
+  // the fix and its pull request, which notifies.
+  const fixed: Alarm = {
+    ...alarm(t),
+    state: "fixing",
+    note: noted(SAYS[language].fix, FIX_USAGE, t),
+  };
   const asked = contribution(language);
   const drafted: Contribution = {
     ...asked,
@@ -250,10 +330,28 @@ function scenes(language: Language): Record<string, Scene> {
         message(drafted, t, `${words.edited} 08:31`),
       ],
     },
+    fix: {
+      title: topicName(alarm(t), t),
+      subtitle: "Repo Pager",
+      messages: [
+        message(alarm(t), t, "10:42"),
+        { service: words.later.replace("{button}", t("button.fix")) },
+        message(fixed, t, "10:54"),
+      ],
+    },
     release: {
       title: topicName(release(language), t),
       subtitle: "Repo Pager",
       messages: [message(release(language), t, "09:15")],
+    },
+    answer: {
+      title: topicName(release(language), t),
+      subtitle: "Repo Pager",
+      messages: [
+        message(release(language), t, "09:15"),
+        own(SAYS[language].asked, "09:20"),
+        answer(language, t, "09:21"),
+      ],
     },
     topics: {
       title: "Repo Pager",
@@ -279,8 +377,10 @@ describe("the pictures of the chat", () => {
   });
 
   it("show the buttons that the README and the website talk about", () => {
-    // The alarm acts with 🔁 Rerun and 🛠 Start fix, the contribution goes from
-    // ✍️ Draft a reply to ✅ Send, and the release offers 🔀 Merge, in each language.
+    // The alarm acts with 🔁 Rerun and 🛠 Start fix, and its fix comes back with
+    // its pull request; the contribution goes from ✍️ Draft a reply to ✅ Send, the
+    // release offers 🔀 Merge, and an answer in its topic offers it with one
+    // ✅ Confirm, in each language.
     for (const language of LANGUAGES) {
       const t = texts(language);
       const shown = scenes(language);
@@ -298,6 +398,19 @@ describe("the pictures of the chat", () => {
       ]);
       expect(labels("release")).toEqual([
         expect.arrayContaining([t("button.merge")]),
+      ]);
+      expect(labels("fix")).toEqual([
+        expect.arrayContaining([t("button.fix")]),
+        [],
+        expect.not.arrayContaining([t("button.fix")]),
+      ]);
+      expect(JSON.stringify(shown.fix?.messages?.[2])).toContain(
+        "https://github.com/Dennis-Otto/repo-blueprint/pull/482",
+      );
+      expect(labels("answer")).toEqual([
+        expect.arrayContaining([t("button.merge")]),
+        [],
+        [t("button.confirm")],
       ]);
       expect(shown.topics?.topics?.map((row) => row.name)).toContain(
         topicName(alarm(t), t),

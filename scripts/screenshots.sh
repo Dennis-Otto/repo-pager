@@ -13,8 +13,10 @@
 # .github/social-preview.html, and photographs in docs/images/screenshots/ each chat
 # of .github/chat.html, by its id such as chat-alarm-en, as <id>.png in Telegram's
 # light theme and <id>.dark.png in its dark one: an alarm with 🔁 Rerun and
-# 🛠 Start fix, a contribution with ✍️ Draft a reply and its draft with ✅ Send, a
-# green release with 🔀 Merge, and the list of topics, each in English and in German.
+# 🛠 Start fix, and the note of its fix with the pull request, a contribution with
+# ✍️ Draft a reply and its draft with ✅ Send, a green release with 🔀 Merge, an
+# answer in its topic with ✅ Confirm, and the list of topics, each in English and
+# in German.
 # What the chats say comes from .github/chat.js, which test/chat.test.ts writes from
 # the texts of the pager, so a changed word of the pager changes the pictures.
 #
@@ -86,6 +88,12 @@ OUT = Path("/tmp/out")
 CLOCK = datetime(2026, 1, 15, 10, 0, tzinfo=UTC)
 # The page of the chats, which loads nothing but its own chat.js.
 CHAT = "file:///work/.github/chat.html"
+# Hides every chat of the page but the one of the id given.
+SHOW_ONLY = """id => {
+  for (const chat of document.querySelectorAll("section.chat")) {
+    chat.hidden = chat.id !== id;
+  }
+}"""
 
 
 def shoot(browser: Browser) -> None:
@@ -108,9 +116,11 @@ def shoot(browser: Browser) -> None:
         if not chats:
             message = f"{CHAT} shows no chat; does .github/chat.js load?"
             raise RuntimeError(message)
-        for chat in chats:
-            name = chat.get_attribute("id")
-            chat.screenshot(
+        for name in [chat.get_attribute("id") for chat in chats]:
+            # Only this chat, at the top of the page: its pixels don't depend on the
+            # heights of the chats above it, so a new chat changes no other picture.
+            page.evaluate(SHOW_ONLY, name)
+            page.locator(f"section.chat#{name}").screenshot(
                 path=OUT / f"{name}{suffix}.png",
                 animations="disabled",
                 caret="hide",
