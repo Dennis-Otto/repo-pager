@@ -103,6 +103,11 @@ Die Repositorys schreiben ihre Changelogs auf Englisch, und GitHub behält sie s
 </picture>
 
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/screenshots/chat-fix-de.dark.png">
+  <img src="images/screenshots/chat-fix-de.png" alt="Das Thema 🚨 repo-blueprint braucht dich in Telegram: die Nachricht des Alarms mit den Knöpfen Neu starten und Fix starten, Später und Ignorieren, und zwölf Minuten nach Fix starten eine neue Nachricht des Alarms, die sagt, dass das Steuer-Repository an einem Fix arbeitet, mit der Notiz des Fixes: Die Lock-Datei pinnte tar 6.2.0, das Socket Security meldet, der Fix hebt es auf 7.4.3, und dem Link zu seinem Pull Request Dennis-Otto/repo-blueprint/pull/482, darunter Modell, Aufwand und Tokens des Laufs, mit den Knöpfen Später und Ignorieren">
+</picture>
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-rerun-of-a-run.de.dark.svg">
   <img src="images/diagrams/the-rerun-of-a-run.de.svg" alt="Der Neustart eines gescheiterten Laufs: Eine Nachricht nennt einen Lauf von GitHub Actions, der auf main scheiterte: den eines Workflows oder einen Eintrag im Alarm, etwa ein Release. Der Maintainer drückt Neu starten, und der Pager liest den Lauf. Solange er noch läuft oder wenn er bei einem neuen Versuch schon grün wurde, sagt der Knopf das, und nichts startet. Sonst laufen seine gescheiterten Jobs erneut, und die Nachricht sagt das. Scheitern sie wieder, zeigt die Nachricht den Fehlschlag, und Neu starten kann sie noch einmal starten. Werden sie grün, wird der Workflow grün, oder der Eintrag verschwindet, und der letzte macht den Alarm grün.">
 </picture>
@@ -268,6 +273,11 @@ Ein Vorschlag nennt seine Sache so, wie das Steuer-Repository sie kennt, und der
 Ein scheiternder Workflow hat kein ⏰ Später, also nennt ein Vorschlag davon keinen Workflow. Sein 🔁 Neu starten zeigt seinen Knopf nur, solange er scheitert, nicht während ein neuer Versuch läuft, wie seine eigene Nachricht.
 
 ✅ Bestätigen trägt die Daten des eigenen Knopfs der Sache, ein Druck führt die Aktion also nur aus, solange die Sache sie noch anbietet, wie jeder Druck, und danach verschwindet der Knopf. Eine Sache, die der Pager nicht zeigt oder die die Aktion gerade nicht anbietet, bekommt die Antwort ohne Knopf. Die `action` eines gescheiterten Fixes nennt kein `target`: Es ist die Sache des Jobs. ✅ Senden und ✏️ Bearbeiten lassen sich nicht vorschlagen: Sie bleiben bei der Nachricht des Entwurfs, die den Text zeigt, den sie posten.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/screenshots/chat-answer-de.dark.png">
+  <img src="images/screenshots/chat-answer-de.png" alt="Das Thema 📦 paperless-sync 1.7.0 in Telegram: die Nachricht des Release mit den Knöpfen Mergen, Später und Ignorieren, darunter die Frage des Maintainers, ob 1.7.0 etwas von denen braucht, die von 1.6 aktualisieren, mit der Reaktion 👍, und die Antwort des Steuer-Repositorys: Nein, umbenannte Tags folgen von selbst und alle Checks sind grün, dann Mergen 1.7.0 mit dem Link zu Dennis-Otto/paperless-sync#312, Modell, Aufwand und Tokens des Laufs und dem einen Knopf Bestätigen">
+</picture>
 
 ```sh
 body='{"type":"note","text":"Der Fix ist in #12."}'

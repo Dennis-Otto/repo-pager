@@ -8,7 +8,8 @@
      chat-alarm-en, as docs/images/screenshots/<id>.png in Telegram's light theme and
      <id>.dark.png in its dark one. What the chats say comes from chat.js, which
      test/chat.test.ts writes from render() of src/render.ts, keyboard() of
-     src/buttons.ts and topicName() of src/topics.ts, so a changed word of the pager
+     src/buttons.ts, topicName() of src/topics.ts and the answers of
+     src/control.ts, so a changed word of the pager
      changes the pictures. This page only draws them, with nothing from the network. -->
 <style>
 /* The emoji of the pager in color, as Telegram shows them, and every other character in a sans-serif font. */
@@ -32,6 +33,9 @@
   --service: rgba(46, 76, 66, 0.38);
   --list: #ffffff;
   --row-line: rgba(0, 0, 0, 0.07);
+  --own: #effdde;
+  --own-meta: #5fbe67;
+  --reaction: rgba(79, 174, 78, 0.16);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -51,6 +55,9 @@
     --service: rgba(31, 48, 67, 0.9);
     --list: #17212b;
     --row-line: rgba(255, 255, 255, 0.06);
+    --own: #2b5278;
+    --own-meta: #7da8d3;
+    --reaction: rgba(255, 255, 255, 0.12);
   }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -81,6 +88,11 @@ body {
 /* Room for the time on the last line, as Telegram leaves it. */
 .text::after { content: ""; display: inline-block; width: var(--room); }
 .meta { position: absolute; right: 10px; bottom: 5px; font-size: 12px; color: var(--meta); }
+/* A text of the maintainer: on the right, in the color of his own messages, with the reaction of the pager. */
+.message.own { display: flex; flex-direction: column; align-items: flex-end; }
+.own .bubble { max-width: 82%; background: var(--own); border-radius: 14px 14px 4px 14px; }
+.own .meta { color: var(--own-meta); }
+.reaction { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 12px; background: var(--reaction); font-size: 14px; }
 .keyboard { display: grid; gap: 4px; margin-top: 4px; }
 .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
 .row span { display: flex; align-items: center; justify-content: center; height: 38px; padding: 0 6px; border-radius: 8px;
@@ -101,10 +113,11 @@ body {
 <script src="chat.js"></script>
 <script>
 "use strict";
-// The logo of the pager: a bell on its orange circle.
-const AVATAR = `<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs><linearGradient id="logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdba74"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs>
-  <circle cx="48" cy="48" r="48" fill="url(#logo)"/>
+// The logo of the pager: a bell on its orange circle, with a gradient of each chat's
+// own, which stays drawn while the chats around it are hidden for their pictures.
+const avatar = (id) => `<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs><linearGradient id="logo-${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdba74"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs>
+  <circle cx="48" cy="48" r="48" fill="url(#logo-${id})"/>
   <path d="M48 20a3.4 3.4 0 0 1 3.4 3.4v1.8c7.2 1.6 11.8 7.9 11.8 15.3v8.8l4.5 6.1a1.8 1.8 0 0 1-1.5 2.9H29.8a1.8 1.8 0 0 1-1.5-2.9l4.5-6.1v-8.8c0-7.4 4.6-13.7 11.8-15.3v-1.8A3.4 3.4 0 0 1 48 20z" fill="#fff"/>
   <path d="M41.8 62h12.4a6.2 6.2 0 0 1-12.4 0z" fill="#fff"/>
 </svg>`;
@@ -139,13 +152,29 @@ function lastLine(html) {
   return lines.at(-1) ?? "";
 }
 
+/** A text of the maintainer: plain text on the right, with the reaction of the pager below it. */
+function own(data) {
+  const node = element("div", "message own", "");
+  const bubble = element("div", "bubble", "");
+  const text = element("div", "text", plain(data.own));
+  text.append(document.createElement("br"), element("span", "reaction", plain(data.reaction)));
+  bubble.append(text, element("span", "meta", plain(data.time)));
+  bubble.style.setProperty("--room", `${data.time.length * 7 + 8}px`);
+  node.append(bubble);
+  return node;
+}
+
 /** A message of the pager: its text, its time and its buttons. */
 function message(data) {
   const node = element("div", "message", "");
   const time = data.time;
   const bubble = element("div", "bubble", "");
   // A quote of Telegram is a block of its own: the line break around it is no empty line.
-  bubble.append(element("div", "text", data.text.replace(/\n?(<blockquote[^>]*>[\s\S]*?<\/blockquote>)\n?/g, "$1")));
+  // An address in the text is a link, as Telegram finds it in any message.
+  const text = data.text
+    .replace(/\n?(<blockquote[^>]*>[\s\S]*?<\/blockquote>)\n?/g, "$1")
+    .replace(/(^|[\s(])(https:\/\/[^\s<]+)/g, "$1<a>$2</a>");
+  bubble.append(element("div", "text", text));
   bubble.append(element("span", "meta", plain(time)));
   bubble.style.setProperty("--room", `${time.length * 7 + 8}px`);
   node.append(bubble);
@@ -164,7 +193,7 @@ function chat(id, language, scene) {
   const node = element("section", "chat", "");
   node.id = id;
   node.lang = language;
-  node.append(element("div", "bar", `<span class="back">‹</span><div class="avatar">${AVATAR}</div>
+  node.append(element("div", "bar", `<span class="back">‹</span><div class="avatar">${avatar(id)}</div>
     <div class="head"><div class="name">${plain(scene.title)}</div><div class="status">${plain(scene.subtitle)}</div></div>`));
   if (scene.topics) {
     const list = element("ul", "topics", "");
@@ -177,7 +206,11 @@ function chat(id, language, scene) {
   } else {
     const messages = element("div", "messages", "");
     for (const data of scene.messages) {
-      messages.append(data.service === undefined ? message(data) : element("div", "service", plain(data.service)));
+      if (data.service !== undefined) {
+        messages.append(element("div", "service", plain(data.service)));
+      } else {
+        messages.append(data.own === undefined ? message(data) : own(data));
+      }
     }
     node.append(messages);
   }

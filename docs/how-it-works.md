@@ -103,6 +103,11 @@ The repositories write their changelogs in English, and GitHub keeps them so. A 
 </picture>
 
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/screenshots/chat-fix-en.dark.png">
+  <img src="images/screenshots/chat-fix-en.png" alt="The topic 🚨 repo-blueprint needs you in Telegram: the message of the alarm with the buttons Rerun and Start fix, Later and Ignore, and twelve minutes after Start fix a new message of the alarm, which says that a fix is under way in the control repository, with the note of the fix: the lock file pinned tar 6.2.0, which Socket Security flags, the fix moves it to 7.4.3, and the link to its pull request Dennis-Otto/repo-blueprint/pull/482, then the model, the effort and the tokens of the run, with the buttons Later and Ignore">
+</picture>
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-rerun-of-a-run.dark.svg">
   <img src="images/diagrams/the-rerun-of-a-run.svg" alt="The rerun of a run that failed: A message names a run of GitHub Actions that failed on main: that of a workflow, or an entry of the alarm, such as a release. The maintainer presses Rerun, and the pager reads the run. While it still runs, or once it passed on a retry, the button says so and nothing starts. Otherwise its failed jobs run again, and the message says so. When they fail again, the message shows the failure, and Rerun can run them once more. When they pass, the workflow turns green, or the entry goes, and the last one turns the alarm green.">
 </picture>
@@ -268,6 +273,11 @@ A proposal names its thing as the control repository knows it, and the pager loo
 A failing workflow has no ⏰ Later, so a proposal of it names no workflow. Its 🔁 Rerun shows its button only while it fails, not while a rerun runs, as its own message does.
 
 ✅ Confirm carries the data of the thing's own button, so a press runs the action only while the thing still offers it, as any press does, and then the button goes. A thing that the pager doesn't show, or that doesn't offer the action now, gets the answer without a button. The `action` of a failed fix names no `target`: it is the thing of the job. ✅ Send and ✏️ Edit can't be proposed: they stay with the message of the draft, which shows the text that they post.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/screenshots/chat-answer-en.dark.png">
+  <img src="images/screenshots/chat-answer-en.png" alt="The topic 📦 paperless-sync 1.7.0 in Telegram: the message of the release with the buttons Merge, Later and Ignore, below it the maintainer's question whether 1.7.0 needs anything from those who update from 1.6, with the reaction 👍, and the answer of the control repository: no, renamed tags follow by themselves and every check is green, then Merge 1.7.0 with the link to Dennis-Otto/paperless-sync#312, the model, the effort and the tokens of the run, and the one button Confirm">
+</picture>
 
 ```sh
 body='{"type":"note","text":"The fix is in #12."}'

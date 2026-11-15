@@ -58,6 +58,39 @@ window.CHAT = {
         }
       ]
     },
+    "fix": {
+      "title": "🚨 repo-blueprint needs you",
+      "subtitle": "Repo Pager",
+      "messages": [
+        {
+          "text": "🚨 <b>Dennis-Otto/repo-blueprint needs you</b>\n• <a>The release fails: Release</a>\n• <a>Socket Security fails on main</a>",
+          "buttons": [
+            [
+              "🔁 Rerun",
+              "🛠 Start fix"
+            ],
+            [
+              "⏰ Later",
+              "✖ Ignore"
+            ]
+          ],
+          "time": "10:42"
+        },
+        {
+          "service": "Twelve minutes after 🛠 Start fix"
+        },
+        {
+          "text": "🚨 <b>Dennis-Otto/repo-blueprint needs you</b>\n• <a>The release fails: Release</a>\n• <a>Socket Security fails on main</a>\n🛠 A fix is under way in the control repository…\n<i>🛠 The lock file pinned tar 6.2.0, which Socket Security flags; the fix moves it to 7.4.3 and runs the release again. The pull request: https://github.com/Dennis-Otto/repo-blueprint/pull/482\n🧮 Opus 5.5 · medium · 184,000 tokens</i>",
+          "buttons": [
+            [
+              "⏰ Later",
+              "✖ Ignore"
+            ]
+          ],
+          "time": "10:54"
+        }
+      ]
+    },
     "release": {
       "title": "📦 paperless-sync 1.7.0",
       "subtitle": "Repo Pager",
@@ -74,6 +107,39 @@ window.CHAT = {
             ]
           ],
           "time": "09:15"
+        }
+      ]
+    },
+    "answer": {
+      "title": "📦 paperless-sync 1.7.0",
+      "subtitle": "Repo Pager",
+      "messages": [
+        {
+          "text": "📦 <b>Release 1.7.0</b> of <a>Dennis-Otto/paperless-sync</a>: <a>#312</a>\n\n<b>Features</b>\n• Tags renamed in Paperless follow in Nextcloud (<a>#305</a>)\n• A share link for every synced document (<a>#309</a>)\n\nEvery check is green, and \"Merge\" publishes it.",
+          "buttons": [
+            [
+              "🔀 Merge",
+              "⏰ Later"
+            ],
+            [
+              "✖ Ignore"
+            ]
+          ],
+          "time": "09:15"
+        },
+        {
+          "own": "Does 1.7.0 need anything from those who update from 1.6?",
+          "time": "09:20",
+          "reaction": "👍"
+        },
+        {
+          "text": "🤖 No: renamed tags follow by themselves, and the share links come for every document that syncs after the update. Every check is green, so 1.7.0 can go out.\n\n👉 🔀 Merge 1.7.0: <a>Dennis-Otto/paperless-sync#312</a>\n\n<i>🧮 Opus 5.5 · medium · 184,000 tokens</i>",
+          "buttons": [
+            [
+              "✅ Confirm"
+            ]
+          ],
+          "time": "09:21"
         }
       ]
     },
@@ -172,6 +238,39 @@ window.CHAT = {
         }
       ]
     },
+    "fix": {
+      "title": "🚨 repo-blueprint braucht dich",
+      "subtitle": "Repo Pager",
+      "messages": [
+        {
+          "text": "🚨 <b>Dennis-Otto/repo-blueprint braucht dich</b>\n• <a>Das Release scheitert: Release</a>\n• <a>Socket Security scheitert auf main</a>",
+          "buttons": [
+            [
+              "🔁 Neu starten",
+              "🛠 Fix starten"
+            ],
+            [
+              "⏰ Später",
+              "✖ Ignorieren"
+            ]
+          ],
+          "time": "10:42"
+        },
+        {
+          "service": "Zwölf Minuten nach 🛠 Fix starten"
+        },
+        {
+          "text": "🚨 <b>Dennis-Otto/repo-blueprint braucht dich</b>\n• <a>Das Release scheitert: Release</a>\n• <a>Socket Security scheitert auf main</a>\n🛠 Das Steuer-Repository arbeitet an einem Fix …\n<i>🛠 Die Lock-Datei pinnte tar 6.2.0, das Socket Security meldet; der Fix hebt es auf 7.4.3 und startet das Release neu. Der Pull Request: https://github.com/Dennis-Otto/repo-blueprint/pull/482\n🧮 Opus 5.5 · Mittel · 184.000 Tokens</i>",
+          "buttons": [
+            [
+              "⏰ Später",
+              "✖ Ignorieren"
+            ]
+          ],
+          "time": "10:54"
+        }
+      ]
+    },
     "release": {
       "title": "📦 paperless-sync 1.7.0",
       "subtitle": "Repo Pager",
@@ -188,6 +287,39 @@ window.CHAT = {
             ]
           ],
           "time": "09:15"
+        }
+      ]
+    },
+    "answer": {
+      "title": "📦 paperless-sync 1.7.0",
+      "subtitle": "Repo Pager",
+      "messages": [
+        {
+          "text": "📦 <b>Release 1.7.0</b> von <a>Dennis-Otto/paperless-sync</a>: <a>#312</a>\n\n<b>Neue Funktionen</b>\n• In Paperless umbenannte Tags folgen in Nextcloud (<a>#305</a>)\n• Ein Freigabelink für jedes synchronisierte Dokument (<a>#309</a>)\n\nAlle Checks sind grün, und „Mergen“ veröffentlicht es.",
+          "buttons": [
+            [
+              "🔀 Mergen",
+              "⏰ Später"
+            ],
+            [
+              "✖ Ignorieren"
+            ]
+          ],
+          "time": "09:15"
+        },
+        {
+          "own": "Braucht 1.7.0 etwas von denen, die von 1.6 aktualisieren?",
+          "time": "09:20",
+          "reaction": "👍"
+        },
+        {
+          "text": "🤖 Nein: umbenannte Tags folgen von selbst, und die Freigabelinks kommen für jedes Dokument, das nach dem Update synchronisiert. Alle Checks sind grün, 1.7.0 kann raus.\n\n👉 🔀 Mergen 1.7.0: <a>Dennis-Otto/paperless-sync#312</a>\n\n<i>🧮 Opus 5.5 · Mittel · 184.000 Tokens</i>",
+          "buttons": [
+            [
+              "✅ Bestätigen"
+            ]
+          ],
+          "time": "09:21"
         }
       ]
     },
