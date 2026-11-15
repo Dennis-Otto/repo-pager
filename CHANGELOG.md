@@ -9,10 +9,9 @@ requests when there is none.
 
 ## [0.10.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.0...v0.10.1) (2026-11-15)
 
-
 ### Bug fixes
 
-* a comment whose notice fails comes again with its notice ([#222](https://github.com/Dennis-Otto/repo-pager/issues/222)) ([dc400ab](https://github.com/Dennis-Otto/repo-pager/commit/dc400abb2bece7d40ccfa62290a5f61d3fca61f8))
+- A new comment or review whose notice Telegram refuses, such as with too many requests at once, now comes again with its notice when GitHub delivers the event again, instead of being taken as noticed and staying quiet.
 
 ## [0.10.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.9.1...v0.10.0) (2026-11-13)
 
