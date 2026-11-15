@@ -121,12 +121,23 @@ const SAYS = {
   },
 } as const;
 
-/** What a run of Claude took, as the footer of an answer shows it. */
-const USAGE: Usage = {
-  turns: 14,
-  seconds: 312,
-  effort: "medium",
-  models: [{ model: "claude-opus-5-5", tokens: 184_000 }],
+/**
+ * What a run of Claude took, as the footer of an answer shows it, with the model and
+ * the effort that pager/core.mjs of the control template sets for each kind of job:
+ * a fix that becomes a pull request runs Opus at extra high effort, an answer to a
+ * free text Sonnet at high effort.
+ */
+const FIX_USAGE: Usage = {
+  turns: 31,
+  seconds: 694,
+  effort: "xhigh",
+  models: [{ model: "claude-opus-5-5", tokens: 412_000 }],
+};
+const ANSWER_USAGE: Usage = {
+  turns: 6,
+  seconds: 74,
+  effort: "high",
+  models: [{ model: "claude-sonnet-5-5", tokens: 58_000 }],
 };
 
 /** An alarm of main: a release that failed in a run, which 🔁 Rerun runs again, and a required check. */
@@ -274,7 +285,7 @@ function answer(language: Language, t: Texts, time: string): Message {
       text: SAYS[language].answer,
       action: "merge",
       target: { kind: "release", repo: shipped.repo },
-      usage: USAGE,
+      usage: ANSWER_USAGE,
     },
     shipped,
     t,
@@ -295,7 +306,7 @@ function scenes(language: Language): Record<string, Scene> {
   const fixed: Alarm = {
     ...alarm(t),
     state: "fixing",
-    note: noted(SAYS[language].fix, USAGE, t),
+    note: noted(SAYS[language].fix, FIX_USAGE, t),
   };
   const asked = contribution(language);
   const drafted: Contribution = {

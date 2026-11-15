@@ -80,7 +80,7 @@ window.CHAT = {
           "service": "Twelve minutes after 🛠 Start fix"
         },
         {
-          "text": "🚨 <b>Dennis-Otto/repo-blueprint needs you</b>\n• <a>The release fails: Release</a>\n• <a>Socket Security fails on main</a>\n🛠 A fix is under way in the control repository…\n<i>🛠 The lock file pinned tar 6.2.0, which Socket Security flags; the fix moves it to 7.4.3 and runs the release again. The pull request: https://github.com/Dennis-Otto/repo-blueprint/pull/482\n🧮 Opus 5.5 · medium · 184,000 tokens</i>",
+          "text": "🚨 <b>Dennis-Otto/repo-blueprint needs you</b>\n• <a>The release fails: Release</a>\n• <a>Socket Security fails on main</a>\n🛠 A fix is under way in the control repository…\n<i>🛠 The lock file pinned tar 6.2.0, which Socket Security flags; the fix moves it to 7.4.3 and runs the release again. The pull request: https://github.com/Dennis-Otto/repo-blueprint/pull/482\n🧮 Opus 5.5 · extra high · 412,000 tokens</i>",
           "buttons": [
             [
               "⏰ Later",
@@ -133,7 +133,7 @@ window.CHAT = {
           "reaction": "👍"
         },
         {
-          "text": "🤖 No: renamed tags follow by themselves, and the share links come for every document that syncs after the update. Every check is green, so 1.7.0 can go out.\n\n👉 🔀 Merge 1.7.0: <a>Dennis-Otto/paperless-sync#312</a>\n\n<i>🧮 Opus 5.5 · medium · 184,000 tokens</i>",
+          "text": "🤖 No: renamed tags follow by themselves, and the share links come for every document that syncs after the update. Every check is green, so 1.7.0 can go out.\n\n👉 🔀 Merge 1.7.0: <a>Dennis-Otto/paperless-sync#312</a>\n\n<i>🧮 Sonnet 5.5 · high · 58,000 tokens</i>",
           "buttons": [
             [
               "✅ Confirm"
@@ -260,7 +260,7 @@ window.CHAT = {
           "service": "Zwölf Minuten nach 🛠 Fix starten"
         },
         {
-          "text": "🚨 <b>Dennis-Otto/repo-blueprint braucht dich</b>\n• <a>Das Release scheitert: Release</a>\n• <a>Socket Security scheitert auf main</a>\n🛠 Das Steuer-Repository arbeitet an einem Fix …\n<i>🛠 Die Lock-Datei pinnte tar 6.2.0, das Socket Security meldet; der Fix hebt es auf 7.4.3 und startet das Release neu. Der Pull Request: https://github.com/Dennis-Otto/repo-blueprint/pull/482\n🧮 Opus 5.5 · Mittel · 184.000 Tokens</i>",
+          "text": "🚨 <b>Dennis-Otto/repo-blueprint braucht dich</b>\n• <a>Das Release scheitert: Release</a>\n• <a>Socket Security scheitert auf main</a>\n🛠 Das Steuer-Repository arbeitet an einem Fix …\n<i>🛠 Die Lock-Datei pinnte tar 6.2.0, das Socket Security meldet; der Fix hebt es auf 7.4.3 und startet das Release neu. Der Pull Request: https://github.com/Dennis-Otto/repo-blueprint/pull/482\n🧮 Opus 5.5 · Extra Hoch · 412.000 Tokens</i>",
           "buttons": [
             [
               "⏰ Später",
@@ -313,7 +313,7 @@ window.CHAT = {
           "reaction": "👍"
         },
         {
-          "text": "🤖 Nein: umbenannte Tags folgen von selbst, und die Freigabelinks kommen für jedes Dokument, das nach dem Update synchronisiert. Alle Checks sind grün, 1.7.0 kann raus.\n\n👉 🔀 Mergen 1.7.0: <a>Dennis-Otto/paperless-sync#312</a>\n\n<i>🧮 Opus 5.5 · Mittel · 184.000 Tokens</i>",
+          "text": "🤖 Nein: umbenannte Tags folgen von selbst, und die Freigabelinks kommen für jedes Dokument, das nach dem Update synchronisiert. Alle Checks sind grün, 1.7.0 kann raus.\n\n👉 🔀 Mergen 1.7.0: <a>Dennis-Otto/paperless-sync#312</a>\n\n<i>🧮 Sonnet 5.5 · Hoch · 58.000 Tokens</i>",
           "buttons": [
             [
               "✅ Bestätigen"
