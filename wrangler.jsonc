@@ -64,7 +64,11 @@
     "TIME_ZONE": "Europe/Berlin",
     // How many pictures the album of a visual change shows at most, the largest
     // changes that the eye sees: "0" for no album, only the message; empty for 3.
-    "PICTURES": "3"
+    "PICTURES": "3",
+    // How many hours the topic of a thing that is done stays, with ✅ and its button
+    // 🗑 Delete topic, before the pager deletes it with every message: "0" with the
+    // next run of the schedule, empty to keep done topics until you delete them.
+    "DONE_TOPIC_HOURS": "24"
   },
   "observability": {
     "enabled": true

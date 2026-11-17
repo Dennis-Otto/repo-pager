@@ -55,6 +55,12 @@ export interface Settings {
   timeZone: string;
   /** The pictures that the album of a visual change shows at most, from 0, which sends none, to MAX_PICTURES. */
   pictures: number;
+  /**
+   * How many hours the topic of a thing that is done stays before the pager
+   * deletes it with its messages, from DONE_TOPIC_HOURS: 0 with the next run of the
+   * schedule, null when it stays for good.
+   */
+  doneTopicHours: number | null;
 }
 
 /** The secrets without which the pager can't serve anything. */
@@ -118,6 +124,27 @@ export function picturesOf(value: string | undefined): number | null {
   return /^\d+$/.test(text) && most <= MAX_PICTURES ? most : null;
 }
 
+/** The most hours that DONE_TOPIC_HOURS keeps the topic of a done thing: two weeks. */
+export const MAX_DONE_TOPIC_HOURS = 24 * 14;
+
+/**
+ * The hours of DONE_TOPIC_HOURS: null when it is empty, which keeps the topics of
+ * done things for good, a number of hours from 0 to MAX_DONE_TOPIC_HOURS, or
+ * undefined for anything else.
+ */
+export function doneTopicHoursOf(
+  value: string | undefined,
+): number | null | undefined {
+  const text = value?.trim() ?? "";
+  if (text === "") {
+    return null;
+  }
+  const hours = Number(text);
+  return /^\d+(\.\d+)?$/.test(text) && hours <= MAX_DONE_TOPIC_HOURS
+    ? hours
+    : undefined;
+}
+
 /**
  * The settings from the environment of the Worker, or the names of what is missing
  * or wrong; never their values.
@@ -156,8 +183,15 @@ export function readSettings(
   if (pictures === null) {
     missing.push(`PICTURES (pictures of an album, from 0 to ${MAX_PICTURES})`);
   }
+  const doneTopicHours = doneTopicHoursOf(env.DONE_TOPIC_HOURS);
+  if (doneTopicHours === undefined) {
+    missing.push(
+      `DONE_TOPIC_HOURS (hours from 0 to ${MAX_DONE_TOPIC_HOURS}, or empty to keep the topics)`,
+    );
+  }
   if (
     missing.length > 0 ||
+    doneTopicHours === undefined ||
     language === null ||
     owners === null ||
     timeZone === null ||
@@ -183,6 +217,7 @@ export function readSettings(
       language,
       timeZone,
       pictures,
+      doneTopicHours,
     },
   };
 }

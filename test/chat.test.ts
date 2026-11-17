@@ -11,7 +11,13 @@ import { describe, expect, it } from "vitest";
 import { keyboard } from "../src/buttons.ts";
 import { noted, proposalMessage } from "../src/control.ts";
 import { render } from "../src/render.ts";
-import type { Alarm, Contribution, Item, Release } from "../src/store.ts";
+import type {
+  Alarm,
+  Contribution,
+  Item,
+  Release,
+  Workflow,
+} from "../src/store.ts";
 import { REACTIONS } from "../src/telegram.ts";
 import { LANGUAGES, type Language, type Texts, texts } from "../src/texts.ts";
 import { COLORS, topicName } from "../src/topics.ts";
@@ -229,6 +235,30 @@ function message(item: Item, t: Texts, time: string): Message {
   };
 }
 
+/**
+ * A workflow that failed on main and is green again: done, in a topic of its own,
+ * whose only button deletes it with every message.
+ */
+function recovered(): Workflow {
+  return {
+    ...base("workflow"),
+    repo: "Dennis-Otto/issue-assistant",
+    kind: "workflow",
+    state: "recovered",
+    path: ".github/workflows/links.yml",
+    name: "Links",
+    branch: "main",
+    run: 912,
+    attempt: 2,
+    url: "https://github.com/Dennis-Otto/issue-assistant/actions/runs/912",
+    jobs: [],
+    count: 2,
+    since: START - 3 * 3600000,
+    last: START - 3600000,
+    topic: { thread: 912, name: "✅ 🔴 Links in issue-assistant" },
+  };
+}
+
 /** The things of the list of topics, newest first, each with its time. */
 function topics(language: Language, t: Texts): [Item, string][] {
   return [
@@ -247,25 +277,7 @@ function topics(language: Language, t: Texts): [Item, string][] {
       },
       "08:05",
     ],
-    [
-      {
-        ...base("workflow"),
-        repo: "Dennis-Otto/issue-assistant",
-        kind: "workflow",
-        state: "recovered",
-        path: ".github/workflows/links.yml",
-        name: "Links",
-        branch: "main",
-        run: 912,
-        attempt: 2,
-        url: "https://github.com/Dennis-Otto/issue-assistant/actions/runs/912",
-        jobs: [],
-        count: 2,
-        since: START - 3 * 3600000,
-        last: START - 3600000,
-      },
-      "07:58",
-    ],
+    [recovered(), "07:58"],
   ];
 }
 
@@ -353,6 +365,11 @@ function scenes(language: Language): Record<string, Scene> {
         answer(language, t, "09:21"),
       ],
     },
+    done: {
+      title: topicName(recovered(), t),
+      subtitle: "Repo Pager",
+      messages: [message(recovered(), t, "07:58")],
+    },
     topics: {
       title: "Repo Pager",
       subtitle: words.bot,
@@ -415,6 +432,8 @@ describe("the pictures of the chat", () => {
       expect(shown.topics?.topics?.map((row) => row.name)).toContain(
         topicName(alarm(t), t),
       );
+      // A thing that is done offers 🗑 Delete topic alone.
+      expect(labels("done")).toEqual([[t("button.delete")]]);
     }
   });
 });

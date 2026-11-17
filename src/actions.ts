@@ -26,6 +26,7 @@ import {
   unignored,
   type Workflow,
 } from "./store.ts";
+import { clearTopic } from "./topics.ts";
 
 export interface Reply {
   text: string;
@@ -376,6 +377,11 @@ export async function press(
         item.snoozedUntil = null;
         await show(context, item);
         return done(context.t("answer.done"));
+      case "delete":
+        // One call to Telegram, which takes the topic with every message of it.
+        return (await clearTopic(context, item))
+          ? done(context.t("answer.deleted"))
+          : refused(context.t("answer.notDeleted"));
       case "merge":
         return await merge(context, item as Release, pressed.version);
       case "fix":

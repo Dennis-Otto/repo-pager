@@ -19,6 +19,7 @@ import {
 } from "../src/store.ts";
 import {
   base,
+  DELETE_TOPIC,
   json,
   REPO,
   START,
@@ -334,7 +335,8 @@ describe("discussions", () => {
       const edited = w.net.telegram("editMessageText").at(-1)?.body;
       expect(edited).toMatchObject({
         message_id: 101,
-        reply_markup: { inline_keyboard: [] },
+        // Done, its only button deletes its topic.
+        reply_markup: { inline_keyboard: DELETE_TOPIC },
       });
       expect(edited.text).toContain("✅ Done.");
       expect(edited.text).toContain(`<i>${note}</i>`);
@@ -941,7 +943,8 @@ describe("comments on issues and pull requests", () => {
       const edited = w.net.telegram("editMessageText").at(-1)?.body;
       expect(edited).toMatchObject({
         message_id: 100,
-        reply_markup: { inline_keyboard: [] },
+        // Done, its only button deletes its topic.
+        reply_markup: { inline_keyboard: DELETE_TOPIC },
       });
       expect(edited.text).toContain("✅ Done.");
       expect(edited.text).toContain(`<i>${note}</i>`);
@@ -999,7 +1002,7 @@ describe("comments on issues and pull requests", () => {
       note: "Closed on GitHub.",
     });
     const edited = w.net.telegram("editMessageText").at(-1)?.body;
-    expect(edited.reply_markup).toEqual({ inline_keyboard: [] });
+    expect(edited.reply_markup).toEqual({ inline_keyboard: DELETE_TOPIC });
     expect(edited.text).toContain("<i>Closed on GitHub.</i>");
     // Done, its record expires, and /open doesn't list it.
     expect(await w.context.store.unclosed()).toEqual([]);

@@ -30,6 +30,7 @@ Make a copy of this repository: a fork, or a repository of your own. `wrangler.j
 | `CLAUDE_TOKEN_EXPIRES` | The day on which your token of Claude expires, or empty |
 | `TIME_ZONE` | Your time zone, a name of the [IANA](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) such as `Europe/Berlin` or `America/New_York`, in which the pager writes each moment of a message, such as when a workflow failed; empty for UTC |
 | `PICTURES` | How many pictures the album of a [visual change](how-it-works.md#the-pictures-of-a-visual-change) shows at most, the largest changes that the eye sees: `3`, or empty, for three, fewer for fewer, `0` for no album, only the message |
+| `DONE_TOPIC_HOURS` | How many hours the [topic of a thing that is done](how-it-works.md#a-topic-per-thing) stays, with ✅ and its button 🗑 Delete topic, before the pager deletes it with every message: `24` for a day, `0` with the next run of the schedule, empty to keep every done topic until you delete it |
 
 **The workflows of your copy:** a copy brings the more than thirty workflows of this repository along, most of them on a schedule: its checks, its bots and its release, which serve this repository with its own secrets and apps. The pager needs none of them, since Cloudflare builds and deploys it. A fork starts with GitHub Actions off: leave them off. A repository of your own runs them: turn them off under *Settings* → *Actions* → *General*, or keep only *CI*, which tests a change of your copy, and turn off each of the others with `gh workflow disable NAME`.
 

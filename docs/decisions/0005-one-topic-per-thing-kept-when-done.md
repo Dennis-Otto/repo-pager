@@ -1,6 +1,6 @@
 # One topic per thing, kept when it is done
 
-- Status: accepted, amended by [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md): a topic that the maintainer deleted opens anew with the next message of its thing, instead of the main view
+- Status: accepted, amended by [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md): a topic that the maintainer deleted opens anew with the next message of its thing, instead of the main view; and by [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md): a done topic goes with 🗑 Delete topic, and after the hours of `DONE_TOPIC_HOURS` where the instance sets them
 - Date: 2026-11-04
 
 ## Context

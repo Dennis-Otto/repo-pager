@@ -3,8 +3,10 @@
  * The first message of a thing opens its topic, named after its repository and what
  * it is; its later messages, a draft, the prompt of an edit and the answers to a
  * text written in the topic go into it. A done thing gets ✅ in front of the name of
- * its topic, which stays as its history: the maintainer deletes one by hand when he
- * is done with it, and the next message of the thing opens a new topic. A chat
+ * its topic and the button 🗑 Delete topic, which deletes the topic with every
+ * message of it; where the instance sets DONE_TOPIC_HOURS, the schedule does so
+ * once they are over. A topic that the maintainer deleted by hand is gone the same
+ * way, and the next message of the thing opens a new topic. A chat
  * without topics, or a topic that Telegram refuses, keeps the thing in the main view,
  * as before topics; a refusal pauses new topics for a while, and an open thing that
  * waits in the main view moves into a topic of its own with its next change.
@@ -13,7 +15,7 @@ import { keyboard } from "./buttons.ts";
 import { cut } from "./content.ts";
 import type { Context } from "./pager.ts";
 import { render, securityPage } from "./render.ts";
-import { type Item, isClosed, type Kind, type Topic } from "./store.ts";
+import { type Item, isDone, type Kind, type Topic } from "./store.ts";
 import {
   type Keyboard,
   type Sent,
@@ -48,14 +50,6 @@ const REMINDER_TOPICS = {
   user: "topic.reminderUser",
   fix: "topic.reminderFix",
 } as const;
-
-/**
- * Whether a thing is done, as the name of its topic shows: closed, or a release
- * that is merged, whose publishing is left to its workflow.
- */
-export function isDone(item: Item): boolean {
-  return isClosed(item) || (item.kind === "release" && item.state === "merged");
-}
 
 /** What a thing is, as the name of its topic says it, with its repository without the owner. */
 function what(item: Item, t: Texts): string {
@@ -201,10 +195,18 @@ async function intoThingTopic(
   );
   if (sent === null) {
     item.topic = null;
+    // Without a topic, nothing is left to delete when it is done.
+    delete item.doneAt;
     return null;
   }
   await context.store.link(sent.thread, item.id, isDone(item));
   item.topic = { thread: sent.thread, name };
+  // A done thing that opens a new topic, such as with a late answer below it,
+  // keeps it for the hours of the instance from now.
+  delete item.cleared;
+  if (isDone(item)) {
+    item.doneAt = context.now();
+  }
   return sent.message;
 }
 
@@ -493,4 +495,40 @@ function unquoted(item: Item): Item {
   }
   const { excerpt: _excerpt, ...rest } = item;
   return rest;
+}
+
+/**
+ * When a thing is done in its topic: from the first change that shows it done
+ * there, kept while it stays done, and none while it is open or has no topic.
+ */
+export function noteDone(context: Context, item: Item): void {
+  if (isDone(item) && (item.topic ?? null) !== null) {
+    item.doneAt ??= context.now();
+  } else {
+    delete item.doneAt;
+  }
+}
+
+/**
+ * Delete the topic of a done thing with every message of it, by 🗑 Delete topic or
+ * from the schedule, and forget it: the thing keeps no topic and no message, shows
+ * nothing more while it stays done, and opens a new topic once it opens again. One
+ * call to Telegram and one write. Returns whether the topic is gone, also when it
+ * was gone already; a refusal of Telegram leaves the thing as it is.
+ */
+export async function clearTopic(
+  context: Context,
+  item: Item,
+): Promise<boolean> {
+  const thread = item.topic?.thread;
+  if (thread !== undefined && !(await context.telegram.removeTopic(thread))) {
+    return false;
+  }
+  item.topic = null;
+  item.messageId = null;
+  item.cleared = true;
+  delete item.doneAt;
+  delete item.renameRefused;
+  await context.store.put(item);
+  return true;
 }

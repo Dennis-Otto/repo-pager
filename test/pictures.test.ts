@@ -1741,7 +1741,11 @@ describe("the pictures of a pull request", () => {
     expect(
       await press(w.context, item, { action: "ignore", id, version: null }),
     ).toEqual({ text: "Ignored.", alert: false });
-    expect(allowed({ ...item, state: "ignored" })).toEqual(["restore"]);
+    // Ignored in its topic, it may go with its topic as well.
+    expect(allowed({ ...item, state: "ignored" })).toEqual([
+      "restore",
+      "delete",
+    ]);
     expect(await apply(w.context, signal("newer"))).toBe("pictures ignored");
     expect(
       await apply(w.context, {

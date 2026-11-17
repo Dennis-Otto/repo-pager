@@ -26,6 +26,7 @@ import { about } from "../src/topics.ts";
 import {
   appKey,
   CHAT,
+  DELETE_TOPIC,
   directly,
   json,
   Net,
@@ -471,7 +472,8 @@ describe("a vulnerability report", () => {
     expect(await apply(w.context, published)).toBe("advisory published");
     const edit = w.net.telegram("editMessageText").at(-1)?.body;
     expect(edit.text).toMatch(/· severity: high\n✅ Published\.$/);
-    expect(edit.reply_markup.inline_keyboard).toEqual([]);
+    // Published, its only button deletes its topic.
+    expect(edit.reply_markup.inline_keyboard).toEqual(DELETE_TOPIC);
     expect(w.net.telegram("editForumTopic").at(-1)?.body.name).toBe(
       "✅ 🔐 Vulnerability report in demo",
     );
@@ -496,9 +498,12 @@ describe("a vulnerability report", () => {
     });
     const ignored = await advisory(w);
     expect(ignored.state).toBe("ignored");
-    expect(allowed(ignored)).toEqual(["restore"]);
+    expect(allowed(ignored)).toEqual(["restore", "delete"]);
     expect(keyboard(ignored, texts("en"))).toEqual([
-      [{ text: "↩️ Bring back", callback_data: `restore:${item.id}` }],
+      [
+        { text: "↩️ Bring back", callback_data: `restore:${item.id}` },
+        { text: "🗑 Delete topic", callback_data: `delete:${item.id}` },
+      ],
     ]);
     const edit = w.net.telegram("editMessageText").at(-1)?.body;
     expect(edit.text).toMatch(/· severity: high\n✖ Ignored\.$/);

@@ -1288,6 +1288,7 @@ describe("the schedule", () => {
       waiting: ["i444444444444444"],
       remind: [],
       rename: [],
+      clear: [],
       // The job went before START, which is due an hour after it.
       next: START - 2,
     });

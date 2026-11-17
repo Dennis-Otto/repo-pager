@@ -27,7 +27,11 @@ import { LIMITS } from "../src/limits.ts";
 import { WAIT } from "../src/pager.ts";
 import { type Delivered, deliver, schedule, serve } from "../src/routes.ts";
 import { ANSWER_WITHIN } from "../src/schedule.ts";
-import type { PagerEnv, Settings } from "../src/settings.ts";
+import {
+  doneTopicHoursOf,
+  type PagerEnv,
+  type Settings,
+} from "../src/settings.ts";
 import {
   appKey,
   CHAT,
@@ -535,6 +539,51 @@ describe("the schedule", () => {
     expect(kv(await scheduled())).toBe(0);
     clock.now += QUARTER;
     expect(await scheduled()).toMatchObject({ kvLists: 1 });
+  });
+
+  it("deletes the topic of a done thing in the run that is due, at one read and one write, and costs nothing before", async () => {
+    await scheduled();
+    // The hours of the instance, which another instance sets as well.
+    const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
+    const store = makeContext(
+      { ...(await settingsOf()), doneTopicHours: hours },
+      env as PagerEnv,
+      net.fetch,
+      () => clock.now,
+      async () => {},
+      undefined,
+      local,
+    ).store;
+    await store.put({
+      id: "i00000000000002",
+      repo: HERE,
+      installation: 9,
+      messageId: 7,
+      note: null,
+      kind: "alarm",
+      state: "recovered",
+      entries: [],
+      snoozedUntil: null,
+      topic: { thread: 900, name: "✅ 🚨 demo" },
+      doneAt: START,
+    });
+    const due = START + hours * 4 * QUARTER;
+    // The write noted its time: a run before it costs nothing.
+    if (due > START + QUARTER) {
+      clock.now = START + QUARTER;
+      expect(kv(await scheduled())).toBe(0);
+    }
+    clock.now = due;
+    // The list, the texts that wait and the record; its write; and one call of Telegram.
+    expect(await scheduled()).toMatchObject({
+      kvLists: 1,
+      kvReads: 2,
+      kvWrites: 1,
+      kvDeletes: 0,
+    });
+    expect(
+      net.calls.filter((call) => call.url.endsWith("/deleteForumTopic")),
+    ).toHaveLength(1);
   });
 
   it("reads the texts that wait only when one may be late", async () => {

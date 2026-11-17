@@ -10,7 +10,7 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0002](0002-buttons-of-an-allowlist-act-and-claude-only-proposes.md) | Buttons of an allowlist act, and Claude only proposes | accepted |
 | [0003](0003-the-control-repository-answers-the-worker.md) | The control repository answers the Worker, and a fix gets a token of its own | accepted |
 | [0004](0004-one-language-per-pager-from-a-catalog.md) | One language per pager, from a catalog of texts | accepted |
-| [0005](0005-one-topic-per-thing-kept-when-done.md) | One topic per thing, kept when it is done | accepted, amended by [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md) |
+| [0005](0005-one-topic-per-thing-kept-when-done.md) | One topic per thing, kept when it is done | accepted, amended by [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md) and [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md) |
 | [0006](0006-a-discussion-gets-its-draft-at-once-and-the-reply-of-the-app.md) | A discussion gets its draft at once, and its reply comes from the app | accepted, amended by [0009](0009-a-discussion-that-github-dealt-with-is-done-and-an-own-draft-stays.md) |
 | [0007](0007-the-pictures-of-a-visual-change-come-from-the-artifacts-of-its-check.md) | The pictures of a visual change come from the artifacts of its check | accepted, amended by [0016](0016-the-album-of-a-visual-change-shows-the-changed-pixels-first.md) |
 | [0008](0008-an-agent-reads-its-answer-from-a-branch-of-the-control-repository.md) | An agent reads its answer from a branch of the control repository | accepted, amended by [0010](0010-a-text-in-the-topic-of-a-question-answers-it-and-an-agent-may-take-it-back.md) |
@@ -36,3 +36,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0028](0028-an-ignored-thing-comes-back-with-a-button.md) | An ignored thing comes back with a button | accepted |
 | [0029](0029-a-visual-change-sends-one-message-per-pull-request-with-the-few-changes-that-the-eye-sees.md) | A visual change sends one message per pull request, with the few changes that the eye sees | accepted |
 | [0030](0030-a-run-comes-once-as-its-check-suite-and-the-worker-answers-what-means-nothing.md) | A run comes once, as its check suite, and the Worker answers what means nothing | accepted |
+| [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md) | A done topic goes with a button, and after the hours of the instance | accepted |
