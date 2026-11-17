@@ -7,6 +7,19 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.11.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.1...v0.11.0) (2026-11-17)
+
+
+### Features
+
+* **telegram:** a done topic goes with 🗑 Delete topic, and after DONE_TOPIC_HOURS ([#243](https://github.com/Dennis-Otto/repo-pager/issues/243)) ([1e85b27](https://github.com/Dennis-Otto/repo-pager/commit/1e85b27cb9271035bd99c8bfffc73b9fd1b76cb1))
+
+
+### Bug fixes
+
+* the pager stays far below the free plan of Cloudflare on a busy day ([#242](https://github.com/Dennis-Otto/repo-pager/issues/242)) ([6a73a27](https://github.com/Dennis-Otto/repo-pager/commit/6a73a27edf8f3984c61e91b7c8e3656e6120cfd1))
+* the pictures of a visual change no longer flood the chat ([#240](https://github.com/Dennis-Otto/repo-pager/issues/240)) ([31f1b8c](https://github.com/Dennis-Otto/repo-pager/commit/31f1b8cf6e7938cdc61e4d0354c2b80a216901f7))
+
 ## [0.10.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.0...v0.10.1) (2026-11-15)
 
 ### Bug fixes
