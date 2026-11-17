@@ -7,6 +7,13 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.11.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.0...v0.11.1) (2026-11-17)
+
+
+### Bug fixes
+
+* the logs of the Worker keep every failure and stay far below the allowance of Observability ([#246](https://github.com/Dennis-Otto/repo-pager/issues/246)) ([9b85935](https://github.com/Dennis-Otto/repo-pager/commit/9b8593597f754bcf5bd3e37253ef4feb4d16eaea))
+
 ## [0.11.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.1...v0.11.0) (2026-11-17)
 
 ### Features
