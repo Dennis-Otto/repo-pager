@@ -7,6 +7,13 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.12.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.1...v0.12.0) (2026-11-17)
+
+
+### Features
+
+* **telegram:** the topics done before 0.11.0 go once, by themselves ([#255](https://github.com/Dennis-Otto/repo-pager/issues/255)) ([6ef1329](https://github.com/Dennis-Otto/repo-pager/commit/6ef1329763d2db2a5b1bf97071ca6d1cd190824d))
+
 ## [0.11.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.0...v0.11.1) (2026-11-17)
 
 ### Bug fixes

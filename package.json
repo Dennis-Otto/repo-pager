@@ -1,6 +1,6 @@
 {
   "name": "repo-pager",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "private": true,
   "description": "A Telegram bot on a Cloudflare Worker that tells its maintainer only what needs them in their GitHub repositories, and acts on it with a button.",
   "homepage": "https://dennis-otto.github.io/repo-pager/",
