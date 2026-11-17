@@ -486,13 +486,19 @@ export interface PullRequestState {
   user?: Account;
   head?: { ref?: string; sha?: string; repo?: { full_name?: string } | null };
   base?: { ref?: string; repo?: { full_name?: string } };
+  /** The auto-merge that GitHub keeps for it, such as a bot's own, or null without one. */
+  auto_merge?: object | null;
 }
 
 /**
  * Why the pictures of a visual check of a pull request don't count, or null when
  * they do: it is open, still at the head that the check rendered, from a branch of
- * the repository itself, and of the maintainer or of a bot. What someone else's
- * pull request renders is theirs, so it never reaches the chat.
+ * the repository itself, and of the maintainer or of a bot that waits for the
+ * maintainer. What someone else's pull request renders is theirs, so it never
+ * reaches the chat. A bot's pull request that GitHub merges by itself, with the
+ * auto-merge that Renovate, Dependabot and the blueprint bot turn on when their
+ * checks may decide, waits for no decision of the maintainer: its pictures stay in
+ * the report of its check.
  */
 export function picturesBlocker(
   pull: PullRequestState,
@@ -509,8 +515,14 @@ export function picturesBlocker(
   if (pull.head?.repo?.full_name !== repo) {
     return "it comes from a fork";
   }
-  if (!isMaintainer(pull.user, maintainer) && !isBot(pull.user)) {
+  if (isMaintainer(pull.user, maintainer)) {
+    return null;
+  }
+  if (!isBot(pull.user)) {
     return "someone else opened it";
+  }
+  if ((pull.auto_merge ?? null) !== null) {
+    return "a bot's that merges by itself";
   }
   return null;
 }
@@ -1115,9 +1127,10 @@ function checkRun(payload: Payload, at: Where): Outcome {
  * A check suite that ended. On a branch of a release, its pull request may be
  * ready to merge, whichever app the checks are of. Of GitHub Actions, it is the
  * end of a run of a workflow, whose run the pager reads only where the run can
- * mean something: on the default branch, a failure, a pass or a cancel, and on a
- * pull request of the repository itself, a pass at its head, which may be its
- * visual check. Anything else is answered at once, before the store and the
+ * mean something: on the default branch, a failure, a pass or a cancel, on a tag
+ * or another branch without a pull request, a failure or a pass, which may be a
+ * run of a release, and on a pull request of the repository itself, a pass at its
+ * head, which may be its visual check. Anything else is answered at once, before the store and the
  * Durable Object, since a day of a fleet brings thousands of them.
  */
 function checkSuite(payload: Payload, at: Where): Outcome {
@@ -1147,21 +1160,36 @@ function checkSuite(payload: Payload, at: Where): Outcome {
   const ran: Outcome = {
     signal: { ...at, type: "suite", suite: id, branch: main },
   };
+  // A run that ended and that a rule may read: a failure or a pass. A skipped
+  // run means nothing on any branch but costs the most, since a fleet's day is
+  // full of runs of workflow_run that skip their jobs.
+  const ended = FAILED.has(conclusion) || ENDS.has(conclusion);
   if (main !== "" && branch === main) {
-    return FAILED.has(conclusion) ||
-      conclusion === "success" ||
-      conclusion === "cancelled"
+    return ended || conclusion === "cancelled"
       ? ran
       : { ignored: `a workflow run that ended ${conclusion}` };
   }
+  const pulls = suite.pull_requests ?? [];
+  if (pulls.length === 0 && branch !== "") {
+    // A run of a tag, of a release or of a push to another branch: a release
+    // workflow, such as the verification of a release published by hand, pages
+    // there, which the run itself says. Such runs are few in a fleet whose
+    // checks run on pull requests.
+    return ended
+      ? ran
+      : {
+          ignored: `a workflow run of another branch that ended ${conclusion}`,
+        };
+  }
   const sha = suite.head_sha ?? "";
-  const atHead = (suite.pull_requests ?? []).some(
-    (pull) => sha !== "" && pull.head?.sha === sha,
-  );
+  const atHead = pulls.some((pull) => sha !== "" && pull.head?.sha === sha);
   return conclusion === "success" && atHead
     ? ran
     : { ignored: "a workflow run of a pull request" };
 }
+
+/** The passes of a check suite that the pager reads its run for: not a skipped one. */
+const ENDS: ReadonlySet<string> = new Set(["success", "neutral"]);
 
 /**
  * The address of the attempt of a run that failed, such as

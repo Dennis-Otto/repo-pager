@@ -47,6 +47,8 @@ interface Cost {
   kvDeletes: number;
   kvLists: number;
   rowsWritten: number;
+  /** Events of Workers Logs: one per request of the Worker or of the object, and each line logged. */
+  logs: number;
 }
 
 const FREE: Cost = { ...LIMITS };
@@ -60,6 +62,7 @@ function nothing(): Cost {
     kvDeletes: 0,
     kvLists: 0,
     rowsWritten: 0,
+    logs: 0,
   };
 }
 
@@ -158,6 +161,25 @@ async function counted(): Promise<PagerEnv> {
   } as PagerEnv;
 }
 
+/** The methods of the console, each line of which is an event of Workers Logs. */
+const LOGGED = ["log", "info", "warn", "error", "debug"] as const;
+
+/** The spies on those methods, for the test that runs. */
+let spies: { mock: { calls: unknown[] } }[] = [];
+
+/** The lines logged so far in this test. */
+function lines(): number {
+  return spies.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+}
+
+/**
+ * Workers Logs keeps one event for each invocation, of the Worker and of the
+ * Durable Object, and one for each line that either logs.
+ */
+function logged(before: number): void {
+  cost.logs = cost.requests + cost.objects + lines() - before;
+}
+
 /** Deliver one event of the GitHub App, signed, and return what it cost. */
 async function price(event: string, payload: object): Promise<Cost> {
   const environment = await counted();
@@ -168,6 +190,7 @@ async function price(event: string, payload: object): Promise<Cost> {
   });
   cost = nothing();
   cost.requests += 1;
+  const before = lines();
   const response = await worker.fetch(
     new Request("https://pager.example/github", {
       method: "POST",
@@ -180,6 +203,7 @@ async function price(event: string, payload: object): Promise<Cost> {
     environment,
   );
   expect(response.status).toBe(200);
+  logged(before);
   return cost;
 }
 
@@ -188,11 +212,13 @@ async function scheduled(): Promise<Cost> {
   const environment = await counted();
   cost = nothing();
   cost.requests += 1;
+  const before = lines();
   const waits: Promise<unknown>[] = [];
   await worker.scheduled({} as ScheduledController, environment, {
     waitUntil: (work: Promise<unknown>) => waits.push(work),
   } as never);
   await Promise.all(waits);
+  logged(before);
   return cost;
 }
 
@@ -256,8 +282,9 @@ beforeEach(async () => {
   withTopics(net);
   clock = { now: START };
   local = new Memory();
-  vi.spyOn(console, "error").mockImplementation(() => {});
-  vi.spyOn(console, "warn").mockImplementation(() => {});
+  spies = LOGGED.map((method) =>
+    vi.spyOn(console, method).mockImplementation(() => {}),
+  );
 });
 
 afterEach(() => {
@@ -265,10 +292,16 @@ afterEach(() => {
 });
 
 /** Only the request of the Worker, which answers it itself. */
-const ANSWERED: Cost = { ...nothing(), requests: 1 };
+const ANSWERED: Cost = { ...nothing(), requests: 1, logs: 1 };
 
 /** A request that the Durable Object serves, which reads one record. */
-const ONE_READ: Cost = { ...nothing(), requests: 1, objects: 1, kvReads: 1 };
+const ONE_READ: Cost = {
+  ...nothing(),
+  requests: 1,
+  objects: 1,
+  kvReads: 1,
+  logs: 2,
+};
 
 /**
  * What each kind of delivery costs, measured: the kinds of a fleet's busy day,
@@ -313,12 +346,29 @@ const MEASURED: Record<string, () => Promise<Cost>> = {
       }),
     );
   },
-  "check_suite: a run of a pull request that failed, or of another branch":
-    () =>
-      price(
+  "check_suite: a run of a pull request that failed": () =>
+    price(
+      "check_suite",
+      suite({
+        head_branch: "feat/blue",
+        conclusion: "failure",
+        pull_requests: [{ number: 8, head: { sha: "abc" } }],
+      }),
+    ),
+  "check_suite: a run of a tag or of a branch without a pull request, such as the verification of a release":
+    () => {
+      runs(
+        run({
+          path: ".github/workflows/verify-release.yml",
+          event: "release",
+          head_branch: "v1.2.0",
+        }),
+      );
+      return price(
         "check_suite",
-        suite({ head_branch: "feat/blue", conclusion: "failure" }),
-      ),
+        suite({ head_branch: "v1.2.0", conclusion: "success" }),
+      );
+    },
   "check_suite: a run of a release that isn't ready to merge": () => {
     net.on("GET", `/repos/${HERE}/pulls/30`, () =>
       json({
@@ -373,13 +423,17 @@ const EXPECTED: Record<keyof typeof MEASURED, Cost> = {
     ...nothing(),
     requests: 1,
     objects: 1,
+    logs: 2,
   },
-  "check_suite: a run of a pull request that failed, or of another branch":
-    ANSWERED,
+  "check_suite: a run of a pull request that failed": ANSWERED,
+  "check_suite: a run of a tag or of a branch without a pull request, such as the verification of a release":
+    // The record of the thing and the alarm of the repository.
+    { ...ONE_READ, kvReads: 2 },
   "check_suite: a run of a release that isn't ready to merge": {
     ...nothing(),
     requests: 1,
     objects: 1,
+    logs: 2,
   },
   "pull_request: of the maintainer or of a bot": ANSWERED,
   "issue_comment: of the maintainer or of a bot": ANSWERED,
@@ -435,6 +489,7 @@ describe("the schedule", () => {
       // The time of the run, which the health check reads, and what the run
       // read of the deliveries of the webhook.
       rowsWritten: 2,
+      logs: 2,
     });
   });
 
@@ -552,7 +607,7 @@ const DAY = {
     "check_suite: a run on main skipped its jobs": 2113,
     "check_suite: a run on main failed, which waits for its rerun": 18,
     "check_suite: a run passed on a pull request, at its head": 606,
-    "check_suite: a run of a pull request that failed, or of another branch": 1826,
+    "check_suite: a run of a pull request that failed": 1826,
     "check_suite: a run of a release that isn't ready to merge": 430,
   },
   others: {
@@ -605,6 +660,7 @@ describe("a busy day of a fleet", () => {
       kvDeletes: 0,
       kvLists: 4,
       rowsWritten: 192,
+      logs: 21_135,
     });
     for (const limit of Object.keys(FREE) as (keyof Cost)[]) {
       expect(total[limit], limit).toBeLessThan(FREE[limit] / 3);

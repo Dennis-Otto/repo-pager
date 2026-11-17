@@ -134,16 +134,42 @@ export type PicturesView = Pick<
   | "sha"
   | "changed"
   | "count"
+  | "seen"
+  | "largest"
   | "shown"
+  | "album"
+  | "most"
   | "differences"
   | "check"
 >;
 
 /**
- * The pictures of a pull request that look different at a head: each with how it
- * changed, as many as the message lists, whether the album below shows them, and a
- * link to the run of the check, whose artifacts have them all before and after, and
- * each changed pixel in red only when they hold the difference of one.
+ * What the message says of the album below it: the pictures that it shows, that
+ * it shows an earlier head, since a pull request gets one album at most, or that
+ * none of them goes as a photo; nothing when the setting sends no album.
+ */
+function albumLine(view: PicturesView, seen: number, t: Texts): string[] {
+  if (view.album !== undefined && view.album !== view.sha) {
+    return [
+      t("message.albumEarlier", {
+        sha: `<code>${html(view.album.slice(0, 7))}</code>`,
+      }),
+    ];
+  }
+  if (view.shown > 0) {
+    return [t("message.album", { shown: view.shown, count: seen })];
+  }
+  return (view.most ?? 1) > 0 ? [t("message.noAlbum")] : [];
+}
+
+/**
+ * The pictures of a pull request that look different at a head. When the eye sees
+ * none of the changes, one line: how many and by how much at most, with the link
+ * to the run of the check. Else how many, the largest change, each picture whose
+ * change the eye sees with how it changed, as many as the message lists, what the
+ * album below shows, and the link to the run of the check, whose artifacts have
+ * them all before and after, and the changes in red only when they hold the
+ * difference of one.
  */
 export function picturesText(view: PicturesView, t: Texts): string {
   const values = {
@@ -154,27 +180,43 @@ export function picturesText(view: PicturesView, t: Texts): string {
   if (view.count === 0) {
     return t("message.picturesSame", values);
   }
+  const check = link(
+    t((view.differences ?? 0) > 0 ? "message.checkRed" : "message.check"),
+    view.check,
+  );
+  // A record from before the pager told them apart counts every one as seen.
+  const seen = view.seen ?? view.count;
+  const largest = view.largest ?? null;
+  if (seen === 0) {
+    const by =
+      largest === null ? "" : t("message.by", { share: t.percent(largest) });
+    const line =
+      view.count === 1
+        ? t("message.unseen.one", { ...values, by })
+        : t("message.unseen.many", { ...values, by, count: view.count });
+    return `${line} · ${check}`;
+  }
   const lines = [
     view.count === 1
       ? t("message.pictures.one", values)
       : t("message.pictures.many", { ...values, count: view.count }),
+  ];
+  if (largest !== null) {
+    lines.push(t("message.largest", { share: t.percent(largest) }));
+  }
+  if (seen < view.count) {
+    lines.push(t("message.seen", { seen }));
+  }
+  lines.push(
     ...view.changed.map(
       (picture) =>
         `• <code>${html(picture.path, 100)}</code>: ${how(picture, t)}`,
     ),
-  ];
-  if (view.count > view.changed.length) {
-    lines.push(t("message.more", { count: view.count - view.changed.length }));
-  }
-  lines.push(
-    view.shown > 0
-      ? t("message.album", { shown: view.shown, count: view.count })
-      : t("message.noAlbum"),
-    link(
-      t((view.differences ?? 0) > 0 ? "message.checkRed" : "message.check"),
-      view.check,
-    ),
   );
+  if (seen > view.changed.length) {
+    lines.push(t("message.more", { count: seen - view.changed.length }));
+  }
+  lines.push(...albumLine(view, seen, t), check);
   return lines.join("\n");
 }
 

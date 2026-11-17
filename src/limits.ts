@@ -2,7 +2,7 @@
  * The daily limits of the free plan of Cloudflare that the pager lives within, as
  * Cloudflare documents them, and what the pager does when it uses one up all the
  * same: it tells its maintainer once that day, as far as it still can, and the
- * answer to the health check of the control repository names the limit.
+ * answer to the health check of the control repository carries the limit.
  * docs/costs.md says what each event costs, and test/costs.test.ts holds a busy
  * day of a fleet of repositories below a third of each limit.
  *
@@ -11,6 +11,9 @@
  *   and 5 million read, https://developers.cloudflare.com/durable-objects/platform/pricing/
  * - Workers KV: 100,000 reads, 1,000 writes, 1,000 deletes and 1,000 lists a day,
  *   https://developers.cloudflare.com/kv/platform/pricing/
+ * - Workers Logs: 200,000 log events a day, one for each invocation of the Worker
+ *   or of the Durable Object and one for each line logged,
+ *   https://developers.cloudflare.com/workers/observability/logs/workers-logs/
  *
  * Each resets at 00:00 UTC. Over the requests of the Worker, Cloudflare answers
  * every request with its error 1027 before the Worker runs, so the pager can't
@@ -31,6 +34,8 @@ export const LIMITS = {
   kvLists: 1_000,
   /** Rows of the storage of the Durable Object that a day may write. */
   rowsWritten: 100_000,
+  /** Events of Workers Logs, which keeps every invocation and every line logged. */
+  logs: 200_000,
 } as const;
 
 /** A daily limit that the runtime refuses an operation over, as an error says it. */

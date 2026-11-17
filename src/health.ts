@@ -65,8 +65,8 @@ export interface Health {
   failure: Failure | null;
   /**
    * The last daily limit of the free plan of Cloudflare that the pager used up, and
-   * when, or null when it never did (src/limits.ts): the check of the control
-   * repository names it.
+   * when, or null when it never did (src/limits.ts), for the check of the
+   * control repository to name.
    */
   limit: LimitHit | null;
   telegram:

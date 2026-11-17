@@ -14,8 +14,9 @@ The pager runs on the free plan of Cloudflare, whose limits count per day and re
 | Writes of Workers KV | 1,000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
 | Deletes of Workers KV | 1,000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
 | Lists of Workers KV | 1,000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
+| Events of Workers Logs | 200,000 | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) |
 
-Each event that GitHub delivers, each update of Telegram and each run of the schedule is one request of the Worker. Over that limit, Cloudflare answers every request with its error 1027 before the Worker runs, which the daily *Health* check of the control repository sees as a 429. Over any other limit, the operation fails inside the Worker: the pager then tells you once that day in Telegram, as far as it still can, and its answer to the health check names the limit (`src/limits.ts`). An event that failed comes again with the schedule once the limit reset, as [How it works](how-it-works.md#when-an-event-fails) describes.
+Each event that GitHub delivers, each update of Telegram and each run of the schedule is one request of the Worker. Over that limit, Cloudflare answers every request with its error 1027 before the Worker runs, which the daily *Health* check of the control repository sees as a 429. Over any other limit, the operation fails inside the Worker: the pager then tells you once that day in Telegram, as far as it still can, and its answer to the health check carries the limit in its field `limit` (`src/limits.ts`). An event that failed comes again with the schedule once the limit reset, as [How it works](how-it-works.md#when-an-event-fails) describes.
 
 ## What each kind of event costs
 
@@ -28,12 +29,15 @@ The Worker checks the signature of a delivery and reads the rules itself, so an 
 | A run on `main` skipped its jobs | 1 | 0 | 0 | 0 |
 | A run on `main` failed, which waits for its rerun | 1 | 1 | 1 | 1 |
 | A run passed on a pull request, at its head, which may be its visual check | 1 | 1 | 0 | 0 |
-| A run of a pull request that failed, or of another branch | 1 | 0 | 0 | 0 |
+| A run of a pull request that failed | 1 | 0 | 0 | 0 |
+| A run of a tag or of a branch without a pull request that failed or passed, such as the verification of a release | 1 | 1 | 2 | 0 |
 | A run of a release that isn't ready to merge | 1 | 1 | 0 | 0 |
 | A pull request or a comment of the maintainer or of a bot | 1 | 0 | 0 | 0 |
 | A delivery of *Workflow run* or *Check run*, from an app that still has them | 1 | 0 | 0 | 0 |
 
-A run comes as the end of its check suite: GitHub sends that event once per run, where *Workflow run* comes three times per run and *Check run* twice for each job, about 14 deliveries per run of five jobs. The pager reads the run of a suite that can mean something, one call of GitHub, which costs nothing of Cloudflare's limits. A failure that shows after its rerun didn't help writes its thing and the link of its topic, two writes.
+A run comes as the end of its check suite: GitHub sends that event once per run, where *Workflow run* comes three times per run and *Check run* twice for each job, about 14 deliveries per run of five jobs. The pager reads the run of a suite that can mean something, one call of GitHub, which costs nothing of Cloudflare's limits. A failure that shows after its rerun didn't help writes its thing and the link of its topic, two writes. A run of a tag or of a branch without a pull request is read as well, since a release workflow such as the verification of a release published by hand runs there; a fleet whose checks run on pull requests has few of them.
+
+Without *Check run*, the pager no longer sees a failing check of another app than GitHub Actions on `main`, such as an outside CI: the runs of GitHub Actions page through their check suites, the checks of other apps don't. Tick *Check run* if such a check should page you; it costs two requests of the Worker per job of every run.
 
 A run of the schedule, every 15 minutes, is a request of the Worker and of the Durable Object and writes two rows of its storage, its time and what it read of the deliveries. It reads nothing of Workers KV while nothing is due: a note in the storage of the Durable Object keeps when the next thing is due, a thing put aside with ⏰ Later or a text that waits for its answer, and the run lists the records only then, and every six hours all the same.
 
@@ -47,7 +51,10 @@ On 2026-11-16, the ten repositories of the maintainer ran 11,746 runs of GitHub 
 | Requests of the Durable Object | about 160,000 | about 7,900 |
 | Reads of Workers KV | thousands, one per pass of a job on `main` | about 6,800 |
 | Lists of Workers KV | 96 | at most 4 while nothing is due |
+| Events of Workers Logs | about 320,000 | about 21,100 |
 
 That is below a third of each limit. The busiest day of that week, 2026-11-13, ran 36,380 runs: about 41,000 requests of the Worker, still below half of each limit.
+
+Workers Logs keeps an event for each request of the Worker and of the Durable Object, and one for each line that either logs; the pager logs a line only when something fails. The logs stay complete (`observability` in `wrangler.jsonc`, without sampling): they are what tells why an event failed, and the busy day needs about 21,100 events of 200,000.
 
 Most of those runs are runs of the blueprint's workflows that a `workflow_run` starts and that skip their jobs: they cost a request each and nothing more. A fleet with more runs than that can still use up the requests of the Worker, since each run is one delivery; a Workers Paid plan has no daily limit of requests.

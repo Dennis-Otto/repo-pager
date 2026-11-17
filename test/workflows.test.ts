@@ -798,6 +798,37 @@ describe("the check suite of a run that ended", () => {
     expect(known).toMatchObject({ state: "waiting", run: 60, attempt: 1 });
   });
 
+  it("pages a verification of a release published by hand that failed, and its pass ends it", async () => {
+    // Publishing the draft of a release runs its verification on the tag.
+    const verify = (id: number, conclusion: string) => () =>
+      json({
+        workflow_runs: [
+          {
+            id,
+            name: "Verify release",
+            path: ".github/workflows/verify-release.yml",
+            event: "release",
+            status: "completed",
+            conclusion,
+            html_url: `${RUNS}/${id}`,
+            head_branch: "v1.2.0",
+            head_repository: { full_name: REPO },
+            run_attempt: 1,
+          },
+        ],
+      });
+    const w = await world();
+    w.net.on("GET", lookup, verify(70, "failure"));
+    expect(await apply(w.context, suite)).toBe("alarm opened");
+    // The release that it verified is no draft any more.
+    w.net
+      .on("GET", `/repos/${REPO}/releases?per_page=10`, () =>
+        json([{ draft: false }]),
+      )
+      .on("GET", lookup, verify(71, "success"));
+    expect(await apply(w.context, suite)).toBe("alarm closed");
+  });
+
   it("says why a run means nothing, and a suite without a run", async () => {
     const w = await world();
     w.net.on("GET", lookup, () =>

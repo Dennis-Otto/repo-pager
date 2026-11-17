@@ -691,7 +691,7 @@ describe("an event that the pager failed to handle", () => {
     ) =>
       attempt(guid, minutes, status, {
         redelivery: again,
-        event: "check_suite",
+        event: "check_run",
         repository: 1,
       });
     const overtaken = listing(await world(), [
@@ -705,11 +705,11 @@ describe("an event that the pager failed to handle", () => {
     expect(redelivered(overtaken)).toEqual([]);
     const stale = suite("stale", 40, 500);
     // An event of no repository: nothing overtakes it.
-    const none = attempt("none", 55, 500, { event: "check_suite" });
+    const none = attempt("none", 55, 500, { event: "check_run" });
     const kept = listing(await world(), [
       [
         suite("older", 12, 200, true),
-        attempt("newest", 11, 200, { event: "check_suite" }),
+        attempt("newest", 11, 200, { event: "check_run" }),
         stale,
         suite("older", 50, 500),
         none,
@@ -717,6 +717,22 @@ describe("an event that the pager failed to handle", () => {
     ]);
     await failedEvents(kept.context);
     expect(redelivered(kept)).toEqual([none.id, stale.id]);
+  });
+
+  it("delivers a failed check suite again, whatever newer suite of its repository passed", async () => {
+    // The suite of CI failed on main while its run couldn't be read; the suite of
+    // another workflow of the same push passed a second later.
+    const failed = attempt("ci", 40, 500, {
+      event: "check_suite",
+      repository: 1,
+    });
+    const passed = attempt("scorecard", 39, 200, {
+      event: "check_suite",
+      repository: 1,
+    });
+    const w = listing(await world(), [[passed, failed]]);
+    await failedEvents(w.context);
+    expect(redelivered(w)).toEqual([failed.id]);
   });
 
   it("takes the newest attempt by its id, whatever the order of the list", async () => {

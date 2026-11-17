@@ -123,7 +123,17 @@ const en = {
     "🖼 <b>{count} pictures look different</b> in {repo} at {sha}: {link}",
   "message.picturesSame":
     "🖼 <b>Every picture looks as committed again</b> in {repo} at {sha}: {link}",
+  "message.unseen.one":
+    "🖼 <b>1 picture differs{by}, which nobody sees</b> in {repo} at {sha}: {link}",
+  "message.unseen.many":
+    "🖼 <b>{count} pictures differ{by}, which nobody sees</b> in {repo} at {sha}: {link}",
+  "message.by": " by {share} at most",
+  "message.largest":
+    "📏 The largest change: {share} of the pixels of a picture.",
+  "message.seen": "👁 The eye sees it in {seen} of them:",
   "message.album": "📸 The album below: {shown} of {count}.",
+  "message.albumEarlier":
+    "📸 The album below shows an earlier head, {sha}: one album per pull request, and the link has the newest pictures.",
   "message.noAlbum":
     "📸 No album: none of them is a PNG or WebP that Telegram shows as a photo.",
   "message.check": "All of them before and after",
@@ -536,7 +546,16 @@ const de: Catalog = {
     "🖼 <b>{count} Bilder sehen anders aus</b> in {repo} bei {sha}: {link}",
   "message.picturesSame":
     "🖼 <b>Jedes Bild sieht wieder so aus wie committet</b> in {repo} bei {sha}: {link}",
+  "message.unseen.one":
+    "🖼 <b>1 Bild weicht{by} ab, was niemand sieht</b>, in {repo} bei {sha}: {link}",
+  "message.unseen.many":
+    "🖼 <b>{count} Bilder weichen{by} ab, was niemand sieht</b>, in {repo} bei {sha}: {link}",
+  "message.by": " um höchstens {share}",
+  "message.largest": "📏 Die größte Änderung: {share} der Pixel eines Bildes.",
+  "message.seen": "👁 Sichtbar ist es bei {seen} davon:",
   "message.album": "📸 Das Album unten: {shown} von {count}.",
+  "message.albumEarlier":
+    "📸 Das Album unten zeigt einen früheren Head, {sha}: ein Album pro Pull Request, und der Link hat die neuesten Bilder.",
   "message.noAlbum":
     "📸 Kein Album: Keines davon ist ein PNG oder WebP, das Telegram als Foto zeigt.",
   "message.check": "Alle vorher und nachher",

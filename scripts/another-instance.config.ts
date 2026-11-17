@@ -1,7 +1,7 @@
 // The tests of the Worker once more, as another instance would run them: with the
 // bindings of wrangler.jsonc, but another maintainer, another control repository,
 // the other language, no day for the token of Claude, another time for "Later" and
-// another time zone.
+// another time zone and another number of pictures in an album.
 // wrangler.jsonc holds the values of one instance, those of the maintainer's own,
 // and docs/setup.md asks everyone who runs a copy to set theirs there, so the tests
 // have to pass with any of them: scripts/check-project.sh runs them with this
@@ -21,6 +21,8 @@ const wrangler = readFileSync("wrangler.jsonc", "utf8");
 const language = /"LANGUAGE"\s*:\s*"([^"]*)"/.exec(wrangler)?.[1];
 // So does its time zone: New York, unless the instance has it, then Tokyo.
 const timeZone = /"TIME_ZONE"\s*:\s*"([^"]*)"/.exec(wrangler)?.[1];
+// And how many pictures an album shows: one, unless the instance has it, then two.
+const pictures = /"PICTURES"\s*:\s*"([^"]*)"/.exec(wrangler)?.[1];
 
 // The values of an instance that nobody runs, for each var of wrangler.jsonc that
 // docs/setup.md asks a copy to set, so that none of them is that of wrangler.jsonc.
@@ -33,6 +35,7 @@ const ANOTHER_INSTANCE = {
   LATER_HOURS: "1",
   TIME_ZONE:
     timeZone?.trim() === "America/New_York" ? "Asia/Tokyo" : "America/New_York",
+  PICTURES: pictures?.trim() === "1" ? "2" : "1",
 };
 
 export default defineConfig({

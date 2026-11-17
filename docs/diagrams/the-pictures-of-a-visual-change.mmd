@@ -5,28 +5,30 @@ config:
 ---
 flowchart TB
     accTitle: The pictures of a visual change
-    accDescr: The maintainer or a bot pushes to a pull request that changes how something looks, and its visual check renders the pictures again and keeps each one that looks different in an artifact, before and after. When the check passed, the pager asks GitHub for the pull request, with a token of its app. One of someone else, from a fork, or that moved on to a newer head ends there, and so does a head whose pictures went already. Otherwise the pager reads the artifact with the same token, through the short-lived address of its storage. When every picture looks as committed, nothing comes. When some look different, their message goes into the topic of its release, or of a thing of their own, and the album of the largest changes follows, as many as fit into the ten photos of an album, each as one comparison of the same frame before and after with the changes framed in red, or, from an older check, its changed pixels in red, then before and after. The merge or the end of the pull request ticks the topic off.
+    accDescr: The maintainer or a bot pushes to a pull request that changes how something looks, and its visual check renders the pictures again and keeps each one that looks different in an artifact, before and after, with its report, which says of each whether the eye sees its change. When the check passed, the pager asks GitHub for the pull request, with a token of its app. One of someone else, from a fork, that moved on to a newer head, or of a bot that merges by itself ends there, and so does a head whose pictures went already. Otherwise the pager reads the artifact with the same token, through the short-lived address of its storage. When every picture looks as committed, nothing comes. When the eye sees none of the changes, one quiet line comes, with how many pictures differ and by how much at most. When it sees some, their message goes into the topic of its release, or of a thing of their own, and the album of the three largest changes that the eye sees follows, each as one comparison of the same frame before and after with the changes framed in red, once per pull request: a newer head edits the message in place. The merge or the end of the pull request ticks the topic off.
 
     push["`The maintainer or a bot pushes to a pull request that changes how something looks`"]
-    check["`The visual check renders the pictures and keeps each one that looks different, before and after`"]
+    check["`The visual check renders the pictures and keeps each one that looks different, before and after, and says whether the eye sees its change`"]
     ask["The pager asks GitHub for the pull request, with a token of its app"]
-    stop["`Someone else's, from a fork, a newer head, or a head whose pictures went: nothing comes`"]
+    stop["`Someone else's, from a fork, a newer head, a bot's that merges by itself, or a head whose pictures went: nothing comes`"]
     read["`The pager reads the artifact, through the short-lived address of its storage`"]
     same["`Every picture looks as committed: nothing comes`"]
-    topic["`**🖼** Their message in the topic of its release, or in one of their own`"]
-    album["`**📸** The album: the largest changes, as many as fit into ten photos, each as one comparison of one frame before and after, the changes framed in red`"]
+    unseen["`**🖼** Nobody sees the changes: one quiet line, with how many and by how much at most`"]
+    topic["`**🖼** Their message in the topic of its release, or in one of their own, which a newer head edits in place`"]
+    album["`**📸** One album per pull request: the three largest changes that the eye sees, each as one comparison of one frame before and after, the changes framed in red`"]
     done["`**✅** The merge or the end of the pull request ticks the topic off`"]
 
     push --> check
     check -- "passed" --> ask
     ask -- "not the pull request's pictures to show" --> stop
-    ask -- "of the maintainer or a bot, at its head" --> read
+    ask -- "of the maintainer, or a bot that waits for him, at its head" --> read
     read -- "nothing changed" --> same
-    read -- "pictures look different" --> topic --> album --> done
+    read -- "the eye sees none of the changes" --> unseen --> done
+    read -- "the eye sees a change" --> topic --> album --> done
 
     classDef you fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
     classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
     classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
     class push you
     class check,ask,stop,read,same bot
-    class topic,album,done done
+    class unseen,topic,album,done done

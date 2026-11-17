@@ -2341,16 +2341,34 @@ describe("the end of a run of GitHub Actions", () => {
     expect(
       ended({ ...pull, pull_requests: [{ number: 8, head: { sha: "def" } }] }),
     ).toEqual({ ignored: "a workflow run of a pull request" });
-    // A pull request of a fork has none of the repository itself.
-    expect(ended({ ...pull, pull_requests: [] })).toEqual({
-      ignored: "a workflow run of a pull request",
-    });
     expect(ended({ ...pull, head_sha: undefined })).toEqual({
       ignored: "a workflow run of a pull request",
     });
-    expect(ended({ ...pull, pull_requests: undefined })).toEqual({
-      ignored: "a workflow run of a pull request",
-    });
+  });
+
+  it("reads the run of a failure or a pass of a tag or another branch, which may be a release", () => {
+    // Publishing the draft of a release runs its verification on the tag. A pull
+    // request of a fork names none of the repository either: its run says so.
+    const tag = { head_branch: "v1.2.0", pull_requests: [] };
+    for (const conclusion of [
+      "failure",
+      "timed_out",
+      "startup_failure",
+      "success",
+      "neutral",
+    ]) {
+      expect(ended({ ...tag, conclusion })).toEqual(read);
+    }
+    expect(ended({ ...tag, pull_requests: undefined })).toEqual(read);
+    for (const conclusion of ["skipped", "cancelled", null]) {
+      expect(ended({ ...tag, conclusion })).toEqual({
+        ignored: `a workflow run of another branch that ended ${conclusion ?? ""}`,
+      });
+    }
+  });
+
+  it("reads the run of a neutral end on the default branch, which may end the alarm of a release", () => {
+    expect(ended({ conclusion: "neutral" })).toEqual(read);
   });
 
   it("leaves the suites of other apps, and one without its id", () => {
@@ -2366,10 +2384,10 @@ describe("the end of a run of GitHub Actions", () => {
     expect(ended({ head_branch: null })).toEqual({
       ignored: "a workflow run of a pull request",
     });
-    // A repository that names no default branch has no run on it.
+    // A repository that names no default branch has no run on it, and a suite counts as one of another branch.
     const { default_branch: _, ...nameless } = repository;
     expect(ended({}, "completed", { repository: nameless })).toEqual({
-      ignored: "a workflow run of a pull request",
+      signal: { ...at, type: "suite", suite: 600, branch: "" },
     });
     expect(ended({ conclusion: undefined, head_branch: "" })).toEqual({
       ignored: "a workflow run of a pull request",
