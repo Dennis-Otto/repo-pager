@@ -9,10 +9,9 @@ requests when there is none.
 
 ## [0.11.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.0...v0.11.1) (2026-11-17)
 
-
 ### Bug fixes
 
-* the logs of the Worker keep every failure and stay far below the allowance of Observability ([#246](https://github.com/Dennis-Otto/repo-pager/issues/246)) ([9b85935](https://github.com/Dennis-Otto/repo-pager/commit/9b8593597f754bcf5bd3e37253ef4feb4d16eaea))
+- The logs of the Worker no longer use up the daily allowance of Cloudflare's Observability. Workers Logs keeps every line that the pager logs, which it does only when something fails and says why, but no longer an event for each request of the Worker and each call of its Durable Object: a busy day on which nothing fails now writes no event at all, where it wrote about 21,000, and a day on which every delivery fails stays below a third of the allowance, also of the 0.5 GB a day that Cloudflare counts from 2026-12-01. Which deliveries came and how the Worker answered each stays in the recent deliveries of your GitHub App and in the metrics of the Worker, as [Costs](https://dennis-otto.github.io/repo-pager/costs/#what-you-still-see) describes. **Your step,** if your copy keeps a `wrangler.jsonc` of its own: take over its new `observability` block, with `"logs": { "invocation_logs": false }`.
 
 ## [0.11.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.1...v0.11.0) (2026-11-17)
 
