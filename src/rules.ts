@@ -463,13 +463,19 @@ export interface PullRequestState {
   user?: Account;
   head?: { ref?: string; sha?: string; repo?: { full_name?: string } | null };
   base?: { ref?: string; repo?: { full_name?: string } };
+  /** The auto-merge that GitHub keeps for it, such as a bot's own, or null without one. */
+  auto_merge?: object | null;
 }
 
 /**
  * Why the pictures of a visual check of a pull request don't count, or null when
  * they do: it is open, still at the head that the check rendered, from a branch of
- * the repository itself, and of the maintainer or of a bot. What someone else's
- * pull request renders is theirs, so it never reaches the chat.
+ * the repository itself, and of the maintainer or of a bot that waits for the
+ * maintainer. What someone else's pull request renders is theirs, so it never
+ * reaches the chat. A bot's pull request that GitHub merges by itself, with the
+ * auto-merge that Renovate, Dependabot and the blueprint bot turn on when their
+ * checks may decide, waits for no decision of the maintainer: its pictures stay in
+ * the report of its check.
  */
 export function picturesBlocker(
   pull: PullRequestState,
@@ -486,8 +492,14 @@ export function picturesBlocker(
   if (pull.head?.repo?.full_name !== repo) {
     return "it comes from a fork";
   }
-  if (!isMaintainer(pull.user, maintainer) && !isBot(pull.user)) {
+  if (isMaintainer(pull.user, maintainer)) {
+    return null;
+  }
+  if (!isBot(pull.user)) {
     return "someone else opened it";
+  }
+  if ((pull.auto_merge ?? null) !== null) {
+    return "a bot's that merges by itself";
   }
   return null;
 }

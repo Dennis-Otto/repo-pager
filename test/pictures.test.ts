@@ -15,6 +15,7 @@ import {
   photoType,
   readArtifact,
   readReport,
+  seen,
 } from "../src/pictures.ts";
 import { picturesText } from "../src/render.ts";
 import type { Signal } from "../src/rules.ts";
@@ -51,15 +52,27 @@ const SHA = "a1b2c3d4e5f60718293a";
 const STORAGE = "https://storage.example/artifact.zip?sig=x";
 const ARTIFACTS = `/repos/${REPO}/actions/runs/31/artifacts?per_page=100`;
 const CHECK = `https://github.com/${REPO}/actions/runs/31`;
-/** What a report names of a picture without a comparison, as one before them. */
-const UNCOMPARED = { comparison: null, frame: null, frames: null };
+/**
+ * What a report names of a picture without a comparison and without the word of
+ * whether the eye sees its change, as one before them.
+ */
+const UNCOMPARED = {
+  comparison: null,
+  frame: null,
+  frames: null,
+  visible: null,
+};
 
-/** The pictures of artifacts as the pager shows them: what changed, and the album. */
-async function read(bytes: Uint8Array[], t: Texts = en) {
+/**
+ * The pictures of artifacts as the pager shows them: what changed, and the album,
+ * of as many pictures as an album takes, MAX_MEDIA, unless most says fewer.
+ */
+async function read(bytes: Uint8Array[], t: Texts = en, most = MAX_MEDIA) {
   const found = await Promise.all(bytes.map((each) => readArtifact(each)));
   return album(
     found.flatMap((each) => (each === null ? [] : [each])),
     t,
+    most,
   );
 }
 
@@ -82,6 +95,8 @@ const changes = [
 interface Pull {
   sha?: string;
   user?: object;
+  /** The auto-merge of the pull request, as GitHub names it, or null. */
+  autoMerge?: object | null;
 }
 
 /**
@@ -90,7 +105,11 @@ interface Pull {
  */
 async function withArtifact(
   bytes: Uint8Array,
-  { sha = SHA, user = { login: "Dennis-Otto", type: "User" } }: Pull = {},
+  {
+    sha = SHA,
+    user = { login: "Dennis-Otto", type: "User" },
+    autoMerge = null,
+  }: Pull = {},
   topics = true,
 ): Promise<World> {
   const w = await world();
@@ -106,6 +125,7 @@ async function withArtifact(
         html_url: `https://github.com/${REPO}/pull/8`,
         user,
         head: { sha, repo: { full_name: REPO } },
+        auto_merge: autoMerge,
       }),
     )
     .on("GET", ARTIFACTS, () =>
@@ -302,6 +322,25 @@ describe("the report of a visual check", () => {
       ["docs/h.png", null],
       ["docs/i.png", null],
     ]);
+  });
+
+  it("reads whether the eye sees the change of each picture, as a report says it", () => {
+    const found = readReport(
+      report([
+        { path: "a.png", status: "changed", share: 0.4, visible: false },
+        { path: "b.png", status: "changed", share: 0.01, visible: true },
+        { path: "c.png", status: "changed", share: 0.2, visible: "yes" },
+        { path: "d.png", status: "new", share: null },
+      ]),
+    );
+    expect(found?.map(({ visible }) => visible)).toEqual([
+      false,
+      true,
+      null,
+      null,
+    ]);
+    // A report that doesn't say counts each picture that it names as seen.
+    expect(found?.map(seen)).toEqual([false, true, true, true]);
   });
 
   it("is no report without its list of pictures", () => {
@@ -1063,6 +1102,37 @@ describe("the text of the pictures", () => {
     expect(de.percent(0.00001)).toBe("< 0,01 %");
   });
 
+  it("says in one line how many differ and by how much when the eye sees none", () => {
+    const unseen = { ...view, changed: [], seen: 0, largest: 0.0065 };
+    expect(picturesText({ ...unseen, count: 1 }, de)).toBe(
+      `🖼 <b>1 Bild weicht um höchstens 0,65 % ab, was niemand sieht</b>, in <a href="https://github.com/${REPO}">${REPO}</a> bei <code>a1b2c3d</code>: <a href="https://github.com/${REPO}/pull/8">#8 Make it &lt;b&gt;</a> · <a href="${CHECK}">Alle vorher und nachher</a>`,
+    );
+    expect(picturesText({ ...unseen, largest: null }, en)).toMatch(
+      /^🖼 <b>6 pictures differ, which nobody sees<\/b> in .* · <a href="[^"]+">All of them before and after<\/a>$/,
+    );
+    expect(picturesText({ ...unseen, count: 64 }, de)).toContain(
+      "<b>64 Bilder weichen um höchstens 0,65 % ab, was niemand sieht</b>",
+    );
+  });
+
+  it("names the album of an earlier head, and no album with PICTURES 0", () => {
+    const earlier = picturesText({ ...view, album: "f00dfeed", shown: 0 }, de);
+    expect(earlier).toContain(
+      "📸 Das Album unten zeigt einen früheren Head, <code>f00dfee</code>",
+    );
+    expect(picturesText({ ...view, shown: 0, most: 0 }, en)).not.toContain(
+      "📸",
+    );
+    expect(
+      picturesText({ ...view, seen: 2, largest: 0.5, shown: 1 }, de)
+        .split("\n")
+        .slice(1, 3),
+    ).toEqual([
+      "📏 Die größte Änderung: 50,00 % der Pixel eines Bildes.",
+      "👁 Sichtbar ist es bei 2 davon:",
+    ]);
+  });
+
   it("promises the changed pixels in red only when the artifacts hold the difference of one", () => {
     const last = (text: string) => text.split("\n").at(-1);
     const plain = `<a href="${CHECK}">All of them before and after</a>`;
@@ -1307,17 +1377,18 @@ describe("the pictures of a pull request", () => {
       "🔴 Changed pixels: <code>docs/images/b.webp</code>",
       "◀️ Before: <code>docs/images/b.webp</code>",
       "▶️ After: <code>docs/images/b.webp</code>",
-      "◀️ Before: <code>screenshots/small.png</code>",
-      "▶️ After: <code>screenshots/small.png</code>",
     ]);
+    // The three largest changes, whatever room the album would have.
     expect(await stored(w, keys.pictures(REPO, 8))).toMatchObject({
       count: 5,
-      shown: 4,
+      seen: 5,
+      shown: 3,
+      album: SHA,
       differences: 1,
     });
   });
 
-  it("go at most once per head, and again in place for a newer one", async () => {
+  it("go at most once per head, and a newer head edits their message alone, without a second album", async () => {
     const w = await withArtifact(await artifact(changes));
     await apply(w.context, signal());
     const calls = w.net.calls.length;
@@ -1337,10 +1408,17 @@ describe("the pictures of a pull request", () => {
     const [edit] = w.net.telegram("editMessageText");
     expect(edit?.body).toMatchObject({ message_id: 100 });
     expect(edit?.body.text).toContain("<code>newer</code>");
-    // Its message changed in place, so the album notifies.
-    const [, album] = w.net.telegram("sendMediaGroup");
-    expect(album?.body.disable_notification).toBe("false");
+    expect(edit?.body.text).toContain(
+      "📸 The album below shows an earlier head, <code>a1b2c3d</code>",
+    );
+    // One album per message: the newer head goes with the link of its check.
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(1);
     expect(w.net.telegram("sendMessage")).toHaveLength(1);
+    expect(await stored(w, keys.pictures(REPO, 8))).toMatchObject({
+      sha: "newer",
+      album: SHA,
+      shown: 0,
+    });
   });
 
   it("go with their album into a new topic when the maintainer deleted theirs", async () => {
@@ -1373,6 +1451,34 @@ describe("the pictures of a pull request", () => {
       messageId: 101,
       topic: { thread: 901, name: "🖼 demo#8 Make it blue" },
     });
+  });
+
+  it("name no album of an earlier head in a new message when the album went with the old one", async () => {
+    const w = await withArtifact(await artifact(changes));
+    await apply(w.context, signal());
+    withDeletedTopic(w.net, 900, [100]);
+    w.net.on("GET", `/repos/${REPO}/pulls/8`, () =>
+      json({
+        number: 8,
+        state: "open",
+        title: "Make it blue",
+        html_url: `https://github.com/${REPO}/pull/8`,
+        user: { login: "Dennis-Otto" },
+        head: { sha: "newer", repo: { full_name: REPO } },
+      }),
+    );
+    // The newer head has no photos to send.
+    w.context.settings.pictures = 0;
+    expect(await apply(w.context, signal("newer"))).toBe("pictures shown anew");
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(1);
+    const texts = [
+      ...w.net.telegram("sendMessage"),
+      ...w.net.telegram("editMessageText"),
+    ].map((call) => String(call.body.text));
+    expect(texts.at(-1)).not.toContain("album below");
+    const stored8 = await stored(w, keys.pictures(REPO, 8));
+    expect(stored8).toMatchObject({ sha: "newer", messageId: 101 });
+    expect(stored8).not.toHaveProperty("album");
   });
 
   it("say in place when the newest head looks as committed again, and nothing for a new one", async () => {
@@ -1431,10 +1537,34 @@ describe("the pictures of a pull request", () => {
       "no pictures: it moved on to another head",
     );
     expect(moved.net.github(ARTIFACTS)).toHaveLength(0);
+    // A bot's pull request that waits for the maintainer, without auto-merge.
     const bot = await withArtifact(await artifact(changes), {
       user: { login: "renovate[bot]", type: "Bot" },
     });
     expect(await apply(bot.context, signal())).toBe("pictures shown");
+  });
+
+  it("stay in the report of the check for a bot's pull request that merges by itself", async () => {
+    for (const login of [
+      "renovate[bot]",
+      "dependabot[bot]",
+      "blueprint[bot]",
+    ]) {
+      const bot = await withArtifact(await artifact(changes), {
+        user: { login, type: "Bot" },
+        autoMerge: { merge_method: "squash" },
+      });
+      expect(await apply(bot.context, signal())).toBe(
+        "no pictures: a bot's that merges by itself",
+      );
+      expect(bot.net.github(ARTIFACTS)).toHaveLength(0);
+      expect(bot.net.telegram("sendMessage")).toHaveLength(0);
+    }
+    // The maintainer's own pull request shows them, with auto-merge or without.
+    const own = await withArtifact(await artifact(changes), {
+      autoMerge: { merge_method: "squash" },
+    });
+    expect(await apply(own.context, signal())).toBe("pictures shown");
   });
 
   it("come from every artifact of the check, such as one per language", async () => {
@@ -1687,6 +1817,170 @@ describe("the pictures of a pull request", () => {
   });
 });
 
+describe("few pictures that say something", () => {
+  /** The pull request #8 of the maintainer at a newer head. */
+  const newer = (w: World, sha: string) =>
+    w.net.on("GET", `/repos/${REPO}/pulls/8`, () =>
+      json({
+        state: "open",
+        title: "Make it blue",
+        user: { login: "Dennis-Otto" },
+        head: { sha, repo: { full_name: REPO } },
+      }),
+    );
+  const six = Array.from({ length: 6 }, (_, index) => ({
+    path: `screenshots/${index}.png`,
+    status: "changed",
+    share: 0.6 - index / 10,
+  }));
+
+  it("show the three largest changes, fewer with PICTURES, and none with 0", async () => {
+    const w = await withArtifact(await artifact(six));
+    expect(await apply(w.context, signal())).toBe("pictures shown");
+    const text = w.net.telegram("sendMessage")[0]?.body.text;
+    expect(text).toContain("📸 The album below: 3 of 6.");
+    expect(text).toContain(
+      "📏 The largest change: 60.00 % of the pixels of a picture.",
+    );
+    // The message lists five, and the report of the check has the rest.
+    expect(text).toContain("<code>screenshots/4.png</code>");
+    expect(text).not.toContain("<code>screenshots/5.png</code>");
+    expect(text).toContain("… and 1 more");
+    expect(media(w).map(({ caption }) => caption)).toEqual(
+      [0, 1, 2].flatMap((index) => [
+        `◀️ Before: <code>screenshots/${index}.png</code>`,
+        `▶️ After: <code>screenshots/${index}.png</code>`,
+      ]),
+    );
+
+    const one = await withArtifact(await artifact(six));
+    one.context.settings.pictures = 1;
+    await apply(one.context, signal());
+    expect(one.net.telegram("sendMessage")[0]?.body.text).toContain(
+      "📸 The album below: 1 of 6.",
+    );
+    expect(media(one)).toHaveLength(2);
+
+    const none = await withArtifact(await artifact(six));
+    none.context.settings.pictures = 0;
+    expect(await apply(none.context, signal())).toBe("pictures shown");
+    const said = none.net.telegram("sendMessage")[0]?.body.text;
+    expect(said).toContain("<b>6 pictures look different</b>");
+    expect(said).not.toContain("📸");
+    expect(none.net.telegram("sendMediaGroup")).toHaveLength(0);
+    expect(none.net.telegram("sendPhoto")).toHaveLength(0);
+    expect(await stored(none, keys.pictures(REPO, 8))).toMatchObject({
+      most: 0,
+      shown: 0,
+    });
+  });
+
+  it("leave out each picture whose change the eye doesn't see, as its report says", async () => {
+    const w = await withArtifact(
+      await artifact([
+        { path: "a.png", status: "changed", share: 0.4, visible: false },
+        { path: "b.png", status: "changed", share: 0.01, visible: true },
+        { path: "c.png", status: "changed", share: 0.2 },
+      ]),
+    );
+    expect(await apply(w.context, signal())).toBe("pictures shown");
+    const [message] = w.net.telegram("sendMessage");
+    expect(message?.body).not.toHaveProperty("disable_notification");
+    expect(message?.body.text.split("\n").slice(1)).toEqual([
+      "📏 The largest change: 40.00 % of the pixels of a picture.",
+      "👁 The eye sees it in 2 of them:",
+      "• <code>c.png</code>: changed, 20.00 % of its pixels",
+      "• <code>b.png</code>: changed, 1.00 % of its pixels",
+      "📸 The album below: 2 of 2.",
+      `<a href="${CHECK}">All of them before and after</a>`,
+    ]);
+    expect(media(w).map(({ caption }) => caption)).not.toContain(
+      "◀️ Before: <code>a.png</code>",
+    );
+    expect(media(w)).toHaveLength(4);
+  });
+
+  it("come as one quiet line without an album when the eye sees none, and with it once a change shows", async () => {
+    // As the visual check of a dependency update reported them, by a report that
+    // says what the eye sees.
+    const unseen = [
+      { path: "docs/images/archive-dark.png", share: 0.0065 },
+      { path: "docs/images/archive.png", share: 0.0017 },
+      { path: "docs/images/de/trash-dark.png", share: 0.0011 },
+      { path: "docs/images/search-and-open-dark.png", share: 0.0008 },
+    ].map((picture) => ({ ...picture, status: "changed", visible: false }));
+    const w = await withArtifact(await artifact(unseen));
+    expect(await apply(w.context, signal())).toBe(
+      "pictures shown, none that the eye sees",
+    );
+    const [message] = w.net.telegram("sendMessage");
+    expect(message?.body.disable_notification).toBe(true);
+    expect(message?.body.text).toBe(
+      `🖼 <b>4 pictures differ by 0.65 % at most, which nobody sees</b> in <a href="https://github.com/${REPO}">${REPO}</a> at <code>a1b2c3d</code>: <a href="https://github.com/${REPO}/pull/8">#8 Make the &lt;button&gt; blue</a> · <a href="${CHECK}">All of them before and after</a>`,
+    );
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(0);
+    expect(w.net.telegram("sendPhoto")).toHaveLength(0);
+
+    // A newer head whose change shows edits the message, and its album notifies.
+    const shown = await artifact([
+      { path: "screenshots/a.png", status: "changed", share: 0.02 },
+    ]);
+    w.net.on(
+      "GET",
+      STORAGE,
+      () => new Response(shown as Uint8Array<ArrayBuffer>),
+    );
+    newer(w, "newer");
+    expect(await apply(w.context, signal("newer"))).toBe("pictures shown anew");
+    expect(w.net.telegram("editMessageText")[0]?.body.text).toContain(
+      "📸 The album below: 1 of 1.",
+    );
+    expect(w.net.telegram("sendMessage")).toHaveLength(1);
+    const [album] = w.net.telegram("sendMediaGroup");
+    expect(album?.body.disable_notification).toBe("false");
+  });
+
+  it("keep to the one album of a record from before the pager told the pictures apart", async () => {
+    for (const [shown, albums] of [
+      [2, 0],
+      [0, 1],
+    ] as const) {
+      const w = await withArtifact(await artifact(changes));
+      const id = await itemId(keys.pictures(REPO, 8));
+      const old: Pictures = {
+        id,
+        repo: REPO,
+        installation: 9,
+        messageId: 100,
+        note: null,
+        snoozedUntil: null,
+        topic: { thread: 900, name: "🖼 demo#8 Make it blue" },
+        kind: "pictures",
+        state: "open",
+        number: 8,
+        title: "Make it blue",
+        url: `https://github.com/${REPO}/pull/8`,
+        sha: "older",
+        changed: [],
+        count: 2,
+        shown,
+        check: CHECK,
+      };
+      await w.context.store.put(old);
+      expect(await apply(w.context, signal())).toBe("pictures shown anew");
+      expect(w.net.telegram("sendMediaGroup")).toHaveLength(albums);
+      // Its text, edited after a press, counts every picture as seen.
+      const { seen: _, ...unsplit } = (await stored(
+        w,
+        keys.pictures(REPO, 8),
+      )) as Pictures;
+      expect(picturesText(unsplit, en)).toContain(
+        "<b>4 pictures look different</b>",
+      );
+    }
+  });
+});
+
 describe("the pictures of a release", () => {
   async function withRelease(state: Release["state"] = "ready") {
     const w = await withArtifact(await artifact(changes));
@@ -1726,7 +2020,7 @@ describe("the pictures of a release", () => {
       disable_notification: "true",
     });
     expect(await stored(w, keys.release(REPO))).toMatchObject({
-      album: SHA,
+      pictures: { number: 8, sha: SHA, message: 100, album: SHA },
       messageId: 7,
     });
     expect(await stored(w, keys.pictures(REPO, 8))).toBeNull();
@@ -1764,7 +2058,7 @@ describe("the pictures of a release", () => {
       disable_notification: "true",
     });
     expect(await stored(w, keys.release(REPO))).toMatchObject({
-      album: SHA,
+      pictures: { number: 8, sha: SHA, message: 101, album: SHA },
       messageId: 100,
       topic: { thread: 900, name: "📦 demo 1.2.0" },
     });
@@ -1816,6 +2110,141 @@ describe("the pictures of a release", () => {
     expect(edit?.body.text).toContain(
       "<i>Telegram refused the pictures: Bad Request: too big</i>",
     );
+  });
+
+  it("go at most once for a head that a release record from before their message names", async () => {
+    const w = await withRelease();
+    const release = (await stored(w, keys.release(REPO))) as Release;
+    await w.context.store.put({ ...release, album: SHA });
+    const calls = w.net.calls.length;
+    expect(await apply(w.context, signal())).toBe("pictures shown already");
+    expect(w.net.calls).toHaveLength(calls);
+  });
+
+  it("edit their message in place for a newer head, without a second album, and go anew when it is gone", async () => {
+    const w = await withRelease();
+    await apply(w.context, signal());
+    const head = (sha: string) =>
+      w.net.on("GET", `/repos/${REPO}/pulls/8`, () =>
+        json({
+          state: "open",
+          title: "chore: release 1.2.0",
+          user: { login: "release[bot]", type: "Bot" },
+          head: { sha, repo: { full_name: REPO } },
+        }),
+      );
+    head("newer");
+    expect(await apply(w.context, signal("newer"))).toBe(
+      "pictures shown with the release in place",
+    );
+    const [edit] = w.net.telegram("editMessageText");
+    expect(edit?.body.message_id).toBe(100);
+    expect(edit?.body.text).toContain(
+      "📸 The album below shows an earlier head, <code>a1b2c3d</code>",
+    );
+    expect(w.net.telegram("sendMessage")).toHaveLength(1);
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(1);
+    expect(await stored(w, keys.release(REPO))).toMatchObject({
+      pictures: { number: 8, sha: "newer", message: 100, album: SHA },
+    });
+    expect(await apply(w.context, signal("newer"))).toBe(
+      "pictures shown already",
+    );
+
+    // The maintainer deleted the message: a new one, with its album.
+    w.net.on("POST", /\/editMessageText$/, () =>
+      json({
+        ok: false,
+        description: "Bad Request: message to edit not found",
+      }),
+    );
+    head("newest");
+    expect(await apply(w.context, signal("newest"))).toBe(
+      "pictures shown with the release",
+    );
+    expect(w.net.telegram("sendMessage")).toHaveLength(2);
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(2);
+    expect(await stored(w, keys.release(REPO))).toMatchObject({
+      pictures: { sha: "newest", message: 101, album: "newest" },
+    });
+  });
+
+  it("come quietly when the eye sees none, apart from those of an earlier release pull request", async () => {
+    const w = await withRelease();
+    const unseen = await artifact([
+      { path: "a.png", status: "changed", share: 0.001, visible: false },
+    ]);
+    w.net.on(
+      "GET",
+      STORAGE,
+      () => new Response(unseen as Uint8Array<ArrayBuffer>),
+    );
+    const release = (await stored(w, keys.release(REPO))) as Release;
+    // The message of the pictures of an earlier release pull request stays as it is.
+    await w.context.store.put({
+      ...release,
+      pictures: { number: 6, sha: SHA, message: 50, album: SHA },
+    });
+    expect(await apply(w.context, signal())).toBe(
+      "pictures shown with the release",
+    );
+    const [message] = w.net.telegram("sendMessage");
+    expect(message?.body.disable_notification).toBe(true);
+    expect(message?.body.text).toContain("which nobody sees");
+    expect(w.net.telegram("editMessageText")).toHaveLength(0);
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(0);
+    expect(await stored(w, keys.release(REPO))).toMatchObject({
+      pictures: { number: 8, sha: SHA, message: 100, album: null },
+    });
+  });
+
+  it("bring their album with the first change that shows, in place, in reply to their message in the main view", async () => {
+    const w = await withRelease();
+    w.net.on("POST", /\/getMe$/, () =>
+      json({ ok: true, result: { id: 1, has_topics_enabled: false } }),
+    );
+    const release = (await stored(w, keys.release(REPO))) as Release;
+    await w.context.store.put({ ...release, topic: null });
+    const visible = await artifact(changes);
+    const unseen = await artifact([
+      { path: "a.png", status: "changed", share: 0.001, visible: false },
+    ]);
+    w.net.on(
+      "GET",
+      STORAGE,
+      () => new Response(unseen as Uint8Array<ArrayBuffer>),
+    );
+    await apply(w.context, signal());
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(0);
+    w.net
+      .on(
+        "GET",
+        STORAGE,
+        () => new Response(visible as Uint8Array<ArrayBuffer>),
+      )
+      .on("GET", `/repos/${REPO}/pulls/8`, () =>
+        json({
+          state: "open",
+          user: { login: "release[bot]", type: "Bot" },
+          head: { sha: "newer", repo: { full_name: REPO } },
+        }),
+      );
+    expect(await apply(w.context, signal("newer"))).toBe(
+      "pictures shown with the release in place",
+    );
+    expect(w.net.telegram("editMessageText")[0]?.body.text).toContain(
+      "📸 The album below: 3 of 4.",
+    );
+    const [album] = w.net.telegram("sendMediaGroup");
+    expect(album?.body).not.toHaveProperty("message_thread_id");
+    expect(album?.body.disable_notification).toBe("false");
+    expect(JSON.parse(album?.body.reply_parameters)).toEqual({
+      message_id: 100,
+      allow_sending_without_reply: true,
+    });
+    expect(await stored(w, keys.release(REPO))).toMatchObject({
+      pictures: { sha: "newer", message: 100, album: "newer" },
+    });
   });
 
   it("stay away from a release that was ignored", async () => {

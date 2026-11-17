@@ -1,0 +1,3 @@
+### Bug fixes
+
+- The pictures of a visual change no longer flood the chat: a pull request gets one message, which each newer commit edits in place, quietly, and one album at most, of the three largest changes that the eye sees, instead of an album of up to ten pictures for every commit. The message says how many pictures differ and by how much at most, and links the report of the check. When the report of the check says that the eye sees none of the changes, the message is one quiet line without an album, and the pull request of a bot that merges by itself, such as Renovate's with auto-merge, keeps its pictures in its check. The new setting `PICTURES` in `wrangler.jsonc` takes the album down, to `0` for none.

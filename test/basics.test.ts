@@ -32,6 +32,7 @@ import {
   isLogin,
   ownersOf,
   type PagerEnv,
+  picturesOf,
   readSettings,
 } from "../src/settings.ts";
 import type { Contribution, Item } from "../src/store.ts";
@@ -143,6 +144,7 @@ describe("settings", () => {
         tokenExpires: "2027-10-07",
         language: "en",
         timeZone: "UTC",
+        pictures: 3,
       },
     });
     const all = readSettings({
@@ -152,6 +154,7 @@ describe("settings", () => {
       CLAUDE_TOKEN_EXPIRES: "",
       LANGUAGE: " de ",
       TIME_ZONE: " Europe/Berlin ",
+      PICTURES: " 0 ",
     } as unknown as PagerEnv);
     expect(all).toMatchObject({
       settings: {
@@ -160,6 +163,7 @@ describe("settings", () => {
         tokenExpires: null,
         language: "de",
         timeZone: "Europe/Berlin",
+        pictures: 0,
       },
     });
     expect(
@@ -220,6 +224,7 @@ describe("settings", () => {
         CLAUDE_TOKEN_EXPIRES: "soon",
         LANGUAGE: "fr",
         TIME_ZONE: "Mars/Olympus_Mons",
+        PICTURES: "10",
       } as unknown as PagerEnv),
     ).toEqual({
       missing: [
@@ -228,8 +233,20 @@ describe("settings", () => {
         "CLAUDE_TOKEN_EXPIRES (a date such as 2027-10-07)",
         "LANGUAGE (en or de)",
         "TIME_ZONE (a time zone such as Europe/Berlin)",
+        "PICTURES (pictures of an album, from 0 to 3)",
       ],
     });
+  });
+
+  it("reads the pictures of an album of PICTURES, three when it is empty", () => {
+    expect(picturesOf(undefined)).toBe(3);
+    expect(picturesOf(" ")).toBe(3);
+    expect(picturesOf("0")).toBe(0);
+    expect(picturesOf(" 2 ")).toBe(2);
+    expect(picturesOf("3")).toBe(3);
+    for (const wrong of ["4", "-1", "1.5", "1e0", "two", "0x2"]) {
+      expect(picturesOf(wrong)).toBeNull();
+    }
   });
 });
 

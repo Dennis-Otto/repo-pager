@@ -17,6 +17,7 @@ import {
   type WorkflowRun,
 } from "./github.ts";
 import {
+  type Album,
   ARTIFACT,
   type Artifact,
   album,
@@ -67,6 +68,7 @@ import {
 } from "./store.ts";
 import {
   type Photo,
+  type Sent,
   type Telegram,
   TelegramError,
   type Thread,
@@ -147,13 +149,14 @@ function pastLater(item: Item): boolean {
  * state, also when what follows the new message fails, such as the delete of the
  * old one: the record names the message that Telegram shows, so that nothing sends
  * the thing again, with live buttons on two messages. Returns whether a new
- * message went, which notifies, unlike an edit in place or a move. A thing that
- * is past its "Later" forgets it (pastLater()).
+ * message went, which notifies, unlike an edit in place or a move, unless it is
+ * silent. A thing that is past its "Later" forgets it (pastLater()).
  */
 export async function show(
   context: Context,
   item: Item,
   fresh = false,
+  silent = false,
 ): Promise<boolean> {
   if (pastLater(item)) {
     item.snoozedUntil = null;
@@ -182,7 +185,7 @@ export async function show(
     shown = moved !== null || (await context.telegram.edit(old, text, buttons));
   }
   if (!shown) {
-    item.messageId = await sendThing(context, item, text, buttons);
+    item.messageId = await sendThing(context, item, text, buttons, silent);
   }
   try {
     try {
@@ -1088,47 +1091,107 @@ async function sendAlbum(
 }
 
 /**
+ * The view of the pictures with what the album below shows: the album of an
+ * earlier head, if one went, or else the album of this head when it has photos.
+ */
+function withAlbum(
+  view: PicturesView,
+  read: Album,
+  earlier: string | undefined,
+): PicturesView {
+  if (earlier !== undefined) {
+    return { ...view, album: earlier };
+  }
+  return read.photos.length > 0
+    ? { ...view, shown: read.shown, album: view.sha }
+    : view;
+}
+
+/**
  * The pictures of a release that the pager shows: a message of their own in its
  * topic, without buttons, since its own message keeps 🔀 Merge, and the album
  * below; a topic that the maintainer deleted opens anew, with the release's own
- * message first. The release keeps the head whose pictures went.
+ * message first. One message per release pull request, which a newer head edits
+ * in place, with one album at most; a message that is gone goes anew, with its
+ * album. A message whose pictures the eye doesn't see comes quietly. The release
+ * keeps the message, its head and the head whose album went.
  */
 async function releasePictures(
   context: Context,
   release: Release,
   view: PicturesView,
-  photos: readonly Photo[],
+  read: Album,
 ): Promise<string> {
-  const text = picturesText(view, context.t);
-  const sent = await postBelow(context, release, text);
-  // The message notified already: the album below it comes quietly.
+  const before =
+    release.pictures?.number === release.number ? release.pictures : null;
+  const earlier = before?.album ?? undefined;
+  let shown = withAlbum(view, read, earlier);
+  let text = picturesText(shown, context.t);
+  let sent: Sent;
+  const edited =
+    before !== null && (await context.telegram.edit(before.message, text, []));
+  if (edited) {
+    sent = { message: before.message, thread: release.topic?.thread ?? null };
+  } else {
+    // A new message brings its album, also when an older one went with the old.
+    shown = withAlbum(view, read, undefined);
+    text = picturesText(shown, context.t);
+    sent = await postBelow(context, release, text, [], view.seen === 0);
+  }
+  const photos = shown.album === view.sha ? read.photos : [];
+  // A new message notified already: the album below it comes quietly; the album
+  // of a message edited in place notifies.
   const failed = await sendAlbum(
     context,
     photos,
     sent.thread,
     sent.message,
-    true,
+    !edited,
   );
   if (failed !== null) {
     await context.telegram.edit(
       sent.message,
-      `${text}\n<i>${html(failed, 500)}</i>`,
+      `${text}
+<i>${html(failed, 500)}</i>`,
       [],
     );
   }
-  release.album = view.sha;
+  release.pictures = {
+    number: release.number,
+    sha: view.sha,
+    message: sent.message,
+    album: failed === null ? (shown.album ?? null) : null,
+  };
   await context.store.put(release);
-  return "pictures shown with the release";
+  return edited
+    ? "pictures shown with the release in place"
+    : "pictures shown with the release";
+}
+
+/**
+ * The head whose album went with the message of an open thing of pictures, if
+ * one did: one album per message at most. A record from before the pager kept it
+ * had an album at its head when it showed one.
+ */
+function albumHead(known: Pictures | null): string | undefined {
+  if (known === null) {
+    return undefined;
+  }
+  return (
+    known.album ??
+    (known.seen === undefined && known.shown > 0 ? known.sha : undefined)
+  );
 }
 
 /**
  * A visual check that passed on a pull request: when a picture looks different
  * at its head, its pictures go into the topic of its thing, the release that the
- * pager shows or a thing of their own, as one message and an album of the largest
- * changes, before and after. At most one album per head, only for a pull request
- * of the maintainer or of a bot, and nothing when every picture looks as
- * committed; the message of a thing whose newest head looks as committed again
- * says so, in place.
+ * pager shows or a thing of their own, as one message per pull request, which a
+ * newer head edits in place, and at most one album of the few largest changes
+ * that the eye sees. Only for a pull request of the maintainer or of a bot that
+ * waits for him, nothing when every picture looks as committed, and quietly when
+ * the eye sees none of the changes; the message of a thing whose newest head
+ * looks as committed again says so, in place.
  */
 async function pictures(
   context: Context,
@@ -1144,7 +1207,17 @@ async function pictures(
   if ((ofRelease ?? known)?.state === "ignored") {
     return "pictures ignored";
   }
-  if ((ofRelease?.album ?? known?.sha) === signal.sha) {
+  const ofThisRelease =
+    ofRelease?.pictures?.number === ofRelease?.number
+      ? ofRelease?.pictures
+      : undefined;
+  // A release record from before the pager kept the message of its pictures named
+  // only the head whose album went.
+  const legacy =
+    ofRelease !== null && ofRelease.pictures === undefined
+      ? ofRelease.album
+      : undefined;
+  if ((ofThisRelease?.sha ?? legacy ?? known?.sha) === signal.sha) {
     return "pictures shown already";
   }
   const pull = await context.github.pullRequest(
@@ -1206,8 +1279,9 @@ async function pictures(
   if (artifacts.length === 0) {
     return "no pictures: the artifact holds no report that the pager reads";
   }
-  const read = await album(artifacts, context.t);
-  const open = known !== null && !isClosed(known);
+  const read = await album(artifacts, context.t, context.settings.pictures);
+  const openThing = known !== null && !isClosed(known);
+  const open = ofRelease === null ? openThing : ofThisRelease !== undefined;
   if (read.changed.length === 0 && !open) {
     return "every picture looks as committed";
   }
@@ -1217,43 +1291,61 @@ async function pictures(
     title: pull.title ?? "",
     url: pull.html_url ?? "",
     sha: signal.sha,
-    changed: read.changed.slice(0, MAX_LISTED),
+    changed: read.seen.slice(0, MAX_LISTED),
     count: read.changed.length,
-    shown: read.shown,
+    seen: read.seen.length,
+    largest: read.largest,
+    shown: 0,
+    most: context.settings.pictures,
     differences: read.differences,
     check: `https://github.com/${signal.repo}/actions/runs/${signal.run}`,
   };
   if (ofRelease !== null) {
-    return releasePictures(context, ofRelease, view, read.photos);
+    return releasePictures(context, ofRelease, view, read);
   }
+  // One album per message: a newer head edits the message alone.
+  const earlier = albumHead(openThing ? known : null);
   const item: Pictures = {
     ...base(id, signal.repo, signal.installation),
-    ...view,
+    ...withAlbum(view, read, earlier),
     kind: "pictures",
     state: "open",
     // The next head of an open thing edits its message; one whose pull request
     // was closed and opened again gets a new message in the topic that it had.
-    messageId: open ? known.messageId : null,
+    messageId: openThing ? known.messageId : null,
     topic: known?.topic ?? null,
   };
   const before = item.messageId;
-  await show(context, item);
+  // A message whose pictures the eye doesn't see says nothing to act on: quietly.
+  await show(context, item, false, read.seen.length === 0);
+  const fresh = item.messageId !== before;
+  if (fresh && earlier !== undefined) {
+    // A new message in place of one that is gone, such as with a topic that the
+    // maintainer deleted, brings its album, which went with the old one; without
+    // photos it names no album at all.
+    delete item.album;
+    Object.assign(item, withAlbum(view, read, undefined));
+    await show(context, item);
+  }
   // A new message notified already; the album of a message edited in place notifies.
   const failed = await sendAlbum(
     context,
-    read.photos,
+    item.album === signal.sha ? read.photos : [],
     item.topic?.thread ?? null,
     item.messageId,
-    item.messageId !== before,
+    fresh,
   );
   if (failed !== null) {
+    // No album went, so the next head may send one.
+    delete item.album;
     item.note = failed;
     await show(context, item);
   }
   if (read.changed.length === 0) {
     return "pictures look as committed again";
   }
-  return known === null ? "pictures shown" : "pictures shown anew";
+  const shown = known === null ? "pictures shown" : "pictures shown anew";
+  return read.seen.length === 0 ? `${shown}, none that the eye sees` : shown;
 }
 
 /** A closed pull request of the maintainer or of a bot: its pictures are done. */
@@ -1405,6 +1497,8 @@ async function releaseCheck(
       url: pull.html_url ?? "",
       ...(notes === undefined ? {} : { notes }),
       ...(translation === undefined ? {} : { translation }),
+      // The message of the pictures of the pull request stays, for its next head.
+      ...(known?.pictures === undefined ? {} : { pictures: known.pictures }),
       // The same release, ready again after an update, keeps its message; a new
       // version keeps the topic of the one that it replaces, renamed.
       messageId: same?.messageId ?? replaced?.messageId ?? null,

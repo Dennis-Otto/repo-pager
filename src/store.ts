@@ -260,8 +260,29 @@ export interface Release extends Base {
   notes?: ReleaseNotes;
   /** Its notes in the language of the pager, from the control repository (src/translations.ts). */
   translation?: Translation;
-  /** The head of the pull request whose pictures of the visual check went into its topic. */
+  /**
+   * The pictures of the visual check of the release pull request, below its message:
+   * one message of their own per pull request, which a newer head edits in place.
+   * None in a record from before it.
+   */
+  pictures?: ReleasePictures;
+  /**
+   * The head whose pictures went into its topic, in a record from before
+   * `pictures`: read only, so that such a head doesn't go a second time.
+   */
   album?: string;
+}
+
+/** The message of the pictures of a release pull request, and the album below it. */
+export interface ReleasePictures {
+  /** The release pull request whose pictures the message shows. */
+  number: number;
+  /** The head that the message shows. */
+  sha: string;
+  /** The message of the pictures. */
+  message: number;
+  /** The head whose album went, at most one per pull request; null while none went. */
+  album: string | null;
 }
 
 /** A picture of the visual check that looks different, as its report names it. */
@@ -275,7 +296,9 @@ export interface Changed {
 
 /**
  * The pictures of a pull request of the maintainer or of a bot that look different
- * in its visual check, before and after, at its newest head that has any.
+ * in its visual check, before and after, at its newest head that has any: one
+ * message per pull request, which a newer head edits in place, and at most one
+ * album below it.
  */
 export interface Pictures extends Base {
   kind: "pictures";
@@ -284,14 +307,35 @@ export interface Pictures extends Base {
   title: string;
   /** The pull request. */
   url: string;
-  /** The head of the pull request that the message shows, whose album went. */
+  /** The head of the pull request that the message shows. */
   sha: string;
-  /** The pictures that look different, the largest change first, as many as the message lists. */
+  /**
+   * The pictures whose change the eye sees, the largest change first, as many as
+   * the message lists; in a record from before the pager told them apart, those
+   * that look different.
+   */
   changed: Changed[];
   /** How many pictures look different in all; none once the newest head looks as committed. */
   count: number;
+  /**
+   * How many of them change in a way that the eye sees; none in a record from
+   * before the pager told them apart, in which every one counts.
+   */
+  seen?: number;
+  /** The largest share of changed pixels of a picture, if any names one. */
+  largest?: number | null;
   /** How many of them the album shows, with its difference, before and after. */
   shown: number;
+  /**
+   * The head whose album went: one album per pull request at most, so a newer head
+   * edits the message alone. None while no album went, and in a record from before.
+   */
+  album?: string;
+  /**
+   * The pictures that an album shows at most, as PICTURES set it when the message
+   * went: with none, the message says nothing of an album.
+   */
+  most?: number;
   /**
    * How many of them the artifacts hold the difference of, each changed pixel in red;
    * none in a record from before the pager read the differences.

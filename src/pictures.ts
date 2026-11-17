@@ -13,9 +13,10 @@
  * named in its entry, and its difference is named as `diff` or `difference`, or is
  * diff/ with the path of a PNG. A newer check also names a `comparison` of a changed
  * picture: the place of its change before and after in one PNG, of the same frame,
- * with the frame of an animation as `frame` of `frames`. The pager reads them all,
- * checks each entry as the comments of the checks do, and takes the largest changes
- * that Telegram shows as photos.
+ * with the frame of an animation as `frame` of `frames`, and a newest one says of
+ * each picture whether its change is one that the eye sees, as `visible`. The pager
+ * reads them all, checks each entry as the comments of the checks do, and takes the
+ * few largest changes that the eye sees and that Telegram shows as photos.
  */
 import { how, html } from "./render.ts";
 import type { Changed } from "./store.ts";
@@ -33,8 +34,14 @@ export const MAX_ARTIFACT = 32 * 1024 * 1024;
 export const MAX_REPORT = 256 * 1024;
 /** The largest file that goes as a photo; Telegram takes 10 MB. */
 export const MAX_PHOTO = 5 * 1024 * 1024;
-/** The pictures that a message lists at most; the artifacts have them all. */
-export const MAX_LISTED = 10;
+/** The pictures that a message lists at most; the report of the check has them all. */
+export const MAX_LISTED = 5;
+/**
+ * The pictures that an album shows at most: the few largest changes, so that the
+ * album says what changed, and the report of the check has the rest. PICTURES in
+ * wrangler.jsonc may take it down, to none.
+ */
+export const MAX_PICTURES = 3;
 
 /** The words of the reports for how a picture changed. */
 const STATUSES: Readonly<Record<string, Changed["status"]>> = {
@@ -63,6 +70,11 @@ export interface Reported extends Changed {
   frame: number | null;
   /** How many frames the picture has, if the report names it: more than one for an animation. */
   frames: number | null;
+  /**
+   * Whether the eye sees its change, as the report says it of each picture with
+   * its threshold of sight; null when the report doesn't say (seen()).
+   */
+  visible: boolean | null;
 }
 
 function plainPath(value: unknown): value is string {
@@ -175,9 +187,22 @@ export function readReport(text: string): Reported[] | null {
             ? entry.comparison
             : null,
         ...framesOf(entry),
+        visible: typeof entry.visible === "boolean" ? entry.visible : null,
       },
     ];
   });
+}
+
+/**
+ * Whether the eye sees the change of a picture, as its report says with its
+ * threshold of sight. A report that doesn't say counts each picture that it names
+ * as seen: the share of the changed pixels tells no noise from a change, since
+ * the noise of a dependency update (paperless-sync#512) took 0.08 to 0.65 % of
+ * the pixels of a picture and the change of a screen (homedarts-for-autodarts#716)
+ * 0.66 %; the album of such a report stays within the few largest changes.
+ */
+export function seen(picture: Pick<Reported, "visible">): boolean {
+  return picture.visible !== false;
 }
 
 /** A file that may be a photo, by its name: one of another kind is never read. */
@@ -497,11 +522,16 @@ async function photosOf(
 
 /** What the artifacts of a visual check show. */
 export interface Album {
-  /** Every picture that looks different, the largest change first. */
+  /** Every picture that looks different, also one whose change nobody sees, the largest change first. */
   changed: Changed[];
+  /** The pictures whose change the eye sees (seen()), the largest change first. */
+  seen: Changed[];
+  /** The largest share of changed pixels of a picture, or null when none names one. */
+  largest: number | null;
   /**
-   * The photos of the album: the largest changes that Telegram shows, each with its
-   * comparison, or with the picture of its difference first, then before and after.
+   * The photos of the album: the largest changes that the eye sees and that
+   * Telegram shows, each with its comparison, or with the picture of its difference
+   * first, then before and after.
    */
   photos: Photo[];
   /** How many pictures the album shows. */
@@ -515,23 +545,27 @@ export interface Album {
 
 /**
  * The pictures of the artifacts of a visual check, the largest change first, and
- * the album of the largest changes that Telegram shows: as many as their photos
- * fit into the MAX_MEDIA of an album, up to the first that no longer fits, so that
- * the album shows the largest changes in their order.
+ * the album of the largest changes that the eye sees and that Telegram shows: at
+ * most `most` pictures, MAX_PICTURES unless the setting takes it down, and as many
+ * as their photos fit into the MAX_MEDIA of an album, up to the first that no
+ * longer fits, so that the album shows the largest changes in their order. A
+ * picture whose change nobody sees never goes: the report of the check has it.
  */
 export async function album(
   artifacts: readonly Artifact[],
   t: Texts,
+  most: number,
 ): Promise<Album> {
   const all = largestFirst(
     artifacts.flatMap(({ zip, changed }) =>
       changed.map((picture) => ({ ...picture, zip })),
     ),
   );
+  const visible = all.filter(seen);
   const photos: Photo[] = [];
   let shown = 0;
-  for (const picture of all) {
-    if (photos.length === MAX_MEDIA) {
+  for (const picture of visible) {
+    if (shown === most || photos.length === MAX_MEDIA) {
       break;
     }
     const its = await photosOf(picture.zip, picture, t);
@@ -543,8 +577,11 @@ export async function album(
       shown += 1;
     }
   }
+  const shares = all.flatMap(({ share }) => (share === null ? [] : [share]));
   return {
     changed: all.map(({ path, status, share }) => ({ path, status, share })),
+    seen: visible.map(({ path, status, share }) => ({ path, status, share })),
+    largest: shares.length === 0 ? null : Math.max(...shares),
     photos,
     shown,
     differences: all.filter(({ zip, diff, comparison }) =>

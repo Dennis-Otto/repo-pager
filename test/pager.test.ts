@@ -2041,6 +2041,21 @@ describe("a release", () => {
     expect(w.net.telegram("deleteMessage")).toHaveLength(0);
   });
 
+  it("keeps the message of the pictures of its pull request through an update", async () => {
+    const w = await world();
+    serve(w);
+    await apply(w.context, check);
+    const ready = (await stored(w, keys.release(REPO))) as Release;
+    const pictures = { number: 30, sha: "abc", message: 70, album: "abc" };
+    await w.context.store.put({ ...ready, pictures });
+    serve(w, { ...pull, head: { ...pull.head, sha: "def" } });
+    expect(await apply(w.context, check)).toBe("#30 ready");
+    expect(await stored(w, keys.release(REPO))).toMatchObject({
+      sha: "def",
+      pictures,
+    });
+  });
+
   it("pages once it is ready, and follows it until it is published", async () => {
     const w = await world();
     serve(w, { ...pull, mergeable_state: "blocked" });

@@ -116,6 +116,8 @@ export interface Picture {
   share: number | null;
   diff?: string;
   difference?: string;
+  /** Whether the eye sees its change, as a report with a threshold of sight says. */
+  visible?: boolean;
 }
 
 /**
