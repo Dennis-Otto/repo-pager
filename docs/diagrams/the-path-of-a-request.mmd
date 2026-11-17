@@ -5,13 +5,15 @@ config:
 ---
 flowchart TB
     accTitle: The path of a request through the Worker
-    accDescr: Telegram calls the Worker at /telegram with a button or a text of the maintainer, the GitHub App at /github with an event, and the control repository at /control with an answer. src/index.ts turns away every other path and method and hands the rest to Serial, the one Durable Object of src/serial.ts, which runs one change at a time, as it does with the run of the schedule every 15 minutes. src/routes.ts first checks where a request comes from, by the secret header of Telegram or the signature of GitHub or of the control repository, and refuses it without a change otherwise. updates.ts, rules.ts, control.ts and schedule.ts decide what it means, and pager.ts and actions.ts apply it: the state of the things in Workers KV, through store.ts, one message per thing in Telegram, through render.ts, texts.ts and telegram.ts, and the action of a button on GitHub, through github.ts.
+    accDescr: Telegram calls the Worker at /telegram with a button or a text of the maintainer, the GitHub App at /github with an event, and the control repository at /control with an answer. src/index.ts turns away every other path and method. An event of GitHub is checked in the Worker itself, by screen() of src/routes.ts: its signature first, then the rules of rules.ts, and an event that means nothing is answered there, without Workers KV and without the Durable Object. The rest goes to Serial, the one Durable Object of src/serial.ts, which runs one change at a time, as it does with the run of the schedule every 15 minutes. routes.ts checks where a request of Telegram or of the control repository comes from, by the secret header of Telegram or the signature of the control repository, and refuses it without a change otherwise. updates.ts, rules.ts, control.ts and schedule.ts decide what it means, and pager.ts and actions.ts apply it: the state of the things in Workers KV, through store.ts, one message per thing in Telegram, through render.ts, texts.ts and telegram.ts, and the action of a button on GitHub, through github.ts.
 
     telegram["`**Telegram** at /telegram: a button or a text of the maintainer`"]
     github["`**The GitHub App** at /github: an event`"]
     control["`**The control repository** at /control: an answer`"]
     cron["`**The schedule** of Cloudflare, every 15 minutes`"]
     index["`**src/index.ts** turns away every other path and method`"]
+    screen{"`**screen() of routes.ts**, in the Worker: is the event signed, and does a rule of rules.ts want it?`"}
+    answered["`No: answered at once, without Workers KV and the Durable Object`"]
     serial["`**Serial**, the one Durable Object of src/serial.ts, runs one change at a time`"]
     routes{"`**routes.ts**: does it prove its origin?`"}
     refused["`No: refused, and nothing changes`"]
@@ -24,7 +26,10 @@ flowchart TB
     telegram --> index
     github --> index
     control --> index
-    index --> serial
+    index -- "an event of GitHub" --> screen
+    screen --> answered
+    screen -- "yes: its signal" --> serial
+    index -- "Telegram and the control repository" --> serial
     cron --> serial
     serial -- "a request" --> routes
     serial -- "a run of the schedule" --> doors
@@ -39,5 +44,5 @@ flowchart TB
     classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
     classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
     class telegram you
-    class github,control,cron,index,serial,routes,doors,apply bot
-    class refused,kv,message,act done
+    class github,control,cron,index,screen,serial,routes,doors,apply bot
+    class refused,answered,kv,message,act done

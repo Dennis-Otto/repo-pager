@@ -71,6 +71,13 @@ const en = {
   "message.otherDraft":
     "🤖 <b>Another draft came</b> for {thing}, but your own text stays the reply. Only for you to read:\n<blockquote>{draft}</blockquote>",
   "message.alarm": "🚨 <b>{repo} needs you</b>\n{entries}",
+  "message.limit":
+    "🪫 <b>The pager used up a daily limit of the free plan of Cloudflare</b>: {limit}. Until it resets at midnight UTC, the pager may miss events; those that GitHub couldn't deliver come again with the schedule after it. docs/costs.md says what each event costs.",
+  "limit.kvReads": "the reads of Workers KV",
+  "limit.kvWrites": "the writes of Workers KV",
+  "limit.kvDeletes": "the deletes of Workers KV",
+  "limit.kvLists": "the lists of Workers KV",
+  "limit.objects": "the requests of the Durable Object",
   "message.alert": "🛡 <b>Security in {repo}</b>\n{entries}",
   "message.advisory":
     "🔐 <b>Vulnerability report in {repo}</b>\n{link} · severity: {severity}",
@@ -477,6 +484,13 @@ const de: Catalog = {
   "message.otherDraft":
     "🤖 <b>Ein weiterer Entwurf kam</b> für {thing}, aber dein eigener Text bleibt die Antwort. Nur zum Lesen:\n<blockquote>{draft}</blockquote>",
   "message.alarm": "🚨 <b>{repo} braucht dich</b>\n{entries}",
+  "message.limit":
+    "🪫 <b>Der Pager hat ein Tageslimit des kostenlosen Plans von Cloudflare aufgebraucht</b>: {limit}. Bis es um Mitternacht UTC zurückgesetzt wird, kann der Pager Ereignisse verpassen; die GitHub nicht zustellen konnte, kommen danach mit dem Zeitplan erneut. docs/costs.md sagt, was jedes Ereignis kostet.",
+  "limit.kvReads": "die Lesezugriffe auf Workers KV",
+  "limit.kvWrites": "die Schreibzugriffe auf Workers KV",
+  "limit.kvDeletes": "die Löschungen in Workers KV",
+  "limit.kvLists": "die Auflistungen von Workers KV",
+  "limit.objects": "die Anfragen an das Durable Object",
   "message.alert": "🛡 <b>Sicherheit in {repo}</b>\n{entries}",
   "message.advisory":
     "🔐 <b>Sicherheitslücke gemeldet in {repo}</b>\n{link} · Schweregrad: {severity}",

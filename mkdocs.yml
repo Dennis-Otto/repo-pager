@@ -53,6 +53,7 @@ plugins:
           Set up: Einrichten
           Architecture: Architektur
           Releases and Cloudflare: Releases und Cloudflare
+          Costs: Kosten
           Security design: Sicherheitskonzept
           Decisions: Entscheidungen
 
@@ -65,6 +66,7 @@ nav:
   - Set up: setup.md
   - Architecture: architecture.md
   - Releases and Cloudflare: releases.md
+  - Costs: costs.md
   - Security design: security.md
   - automation.md
   - Decisions: decisions/README.md

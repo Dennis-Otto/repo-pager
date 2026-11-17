@@ -161,7 +161,7 @@ Die App ist privat, nur das Konto, dem sie gehört, kann sie installieren: deins
 | Recht | Zugriff | Für |
 | --- | --- | --- |
 | Actions | Read and write | Ein Workflow, der auf `main` scheitert, und die Jobs, die in ihm scheiterten; 🔁 Neu starten, das einen gescheiterten Lauf liest und seine gescheiterten Jobs erneut startet; die Bilder eines Visual Checks |
-| Checks | Read | Ein Pflicht-Check einer anderen App als GitHub Actions, der auf `main` scheitert; ein Release, dessen Checks fertig sind |
+| Checks | Read | Das Ende jedes Laufs eines Workflows, als Ende seiner Check-Suite; ein Release, dessen Checks fertig sind; mit dem Ereignis *Check run*, das nur du ankreuzt, ein Pflicht-Check einer anderen App als GitHub Actions, der auf `main` scheitert |
 | Code scanning alerts | Read | Ein Alarm mit Schweregrad high oder critical |
 | Contents | Read and write | 🔀 Mergen eines Releases; die Ereignisse an das Steuer-Repository; ob ein Release nach einem gescheiterten Release noch ein Entwurf ist, was GitHub nur einem Token zeigt, das die Inhalte schreiben darf |
 | Discussions | Read and write | Eine neue Diskussion oder ein Kommentar zu einer; ✅ Senden einer Antwort in einer Diskussion, als App |
@@ -170,6 +170,10 @@ Die App ist privat, nur das Konto, dem sie gehört, kann sie installieren: deins
 | Pull requests | Read | Ein neuer Pull Request, seine Reviews, die Kommentare in seinem Code, seine neuen Commits, ein erneutes Öffnen und die Freigabe zum Review; der Zustand eines Release-Pull-Requests; wer einen Pull Request eröffnet hat, dessen Bilder sich geändert haben, und sein Head |
 | Repository security advisories | Read | Eine vertrauliche Meldung einer Sicherheitslücke und ihr veröffentlichtes Advisory; an Tag 6, ob eine Meldung noch in der Triage wartet, das einzige Feld, das der Pager von ihr liest |
 | Secret scanning alerts | Read | Eine Warnung des Secret Scannings und die Datei ihres Secrets, nie das Secret |
+
+Ihre Ereignisse sind nur die, die die Regeln des Pagers lesen: *Check suite*, *Code scanning alert*, *Discussion*, *Discussion comment*, *Issue comment*, *Issues*, *Pull request*, *Pull request review*, *Pull request review comment*, *Release*, *Repository advisory* und *Secret scanning alert*. Jedes Ereignis, das GitHub zustellt, ist eine Anfrage an den Worker, und der kostenlose Plan von Cloudflare nimmt 100.000 am Tag, deshalb verlangt die App keines, das pro Lauf von GitHub Actions mehrmals kommt: Das Ende eines Laufs kommt einmal, als Ende seiner Check-Suite, wo *Workflow run* dreimal pro Lauf kommt und *Check run* zweimal pro Job ([Kosten](costs.md)).
+
+**Eine App, die du mit einer älteren `github-app.json` registriert hast,** hat die Ereignisse *Check run* und *Workflow run*, die an einem vollen Tag einer Flotte von Repositorys den kostenlosen Plan von Cloudflare aufgebraucht haben: Am 2026-11-16 liefen in zehn Repositorys 11.746 Läufe von GitHub Actions, die als etwa 160.000 Zustellungen kamen. Nimm beide in den Einstellungen der App heraus, unter *Permissions & events*, am Ende der Seite unter *Subscribe to events*: Entferne den Haken bei **Check run** und **Workflow run**, lass **Check suite** angehakt und speichere mit dem Knopf unten. Keine Installation muss dafür etwas annehmen, und der Pager braucht keines von beiden, seit er Läufe aus ihren Check-Suites liest: Er liest jeden Lauf aus seiner Check-Suite und beantwortet eine Zustellung von beiden sofort. Behalte *Check run* nur, wenn ein Ruleset von `main` einen Check einer anderen App als GitHub Actions verlangt, etwa eines externen CI, dessen Scheitern dich rufen soll; es kostet zwei Anfragen pro Job jedes Laufs.
 
 Eine App, die du vor 🔁 **Neu starten** registriert hast, hat *Actions: Read*: Setz es in den Einstellungen der App unter *Permissions & events* auf *Read and write* und nimm die neue Berechtigung für jede Installation an, wie GitHub dich per Mail bittet. Bis dahin sagt der Knopf, dass GitHub ihn ablehnte.
 

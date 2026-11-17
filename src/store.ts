@@ -533,6 +533,11 @@ export interface Pending {
   remind: string[];
   /** The things whose topic Telegram refused to rename. */
   rename: string[];
+  /**
+   * The earliest moment at which one of the things listed is due, those due now
+   * included, or null when none waits for a time.
+   */
+  next: number | null;
 }
 
 /** The metadata of the record of a thing, which the list reads. */
@@ -580,11 +585,19 @@ function current(item: Item): Item {
   return item;
 }
 
+/**
+ * What the store tells the schedule when it writes a record that waits for a time:
+ * that the schedule has something to look at no later than at.
+ */
+export type Soon = (at: number) => Promise<void>;
+
 export class Store {
   private readonly kv: KVNamespace;
+  private readonly soon: Soon;
 
-  constructor(kv: KVNamespace) {
+  constructor(kv: KVNamespace, soon: Soon) {
     this.kv = kv;
+    this.soon = soon;
   }
 
   async get(id: string): Promise<Item | null> {
@@ -625,6 +638,10 @@ export class Store {
       }
     }
     await this.kv.put(`item:${item.id}`, JSON.stringify(item), options);
+    const times = Object.values((options.metadata ?? {}) as Marks) as number[];
+    if (times.length > 0) {
+      await this.soon(Math.min(...times));
+    }
   }
 
   /**
@@ -639,7 +656,17 @@ export class Store {
     jobsBefore: number,
     limit = 1000,
   ): Promise<Pending> {
-    const pending: Pending = { due: [], waiting: [], remind: [], rename: [] };
+    const pending: Pending = {
+      due: [],
+      waiting: [],
+      remind: [],
+      rename: [],
+      next: null,
+    };
+    const at = (time: number) => {
+      pending.next =
+        pending.next === null ? time : Math.min(pending.next, time);
+    };
     let cursor: string | null = null;
     do {
       const listed: KVNamespaceListResult<Marks> = await this.kv.list({
@@ -650,16 +677,27 @@ export class Store {
       for (const key of listed.keys) {
         const id = key.name.slice("item:".length);
         const { until, job, remind, rename } = key.metadata ?? {};
-        if (until !== undefined && until <= now) {
-          pending.due.push(id);
+        if (until !== undefined) {
+          at(until);
+          if (until <= now) {
+            pending.due.push(id);
+          }
         }
-        if (job !== undefined && job < jobsBefore) {
-          pending.waiting.push(id);
+        if (job !== undefined) {
+          // A job is due once it went before jobsBefore, as long before now.
+          at(job + now - jobsBefore);
+          if (job < jobsBefore) {
+            pending.waiting.push(id);
+          }
         }
-        if (remind !== undefined && remind <= now) {
-          pending.remind.push(id);
+        if (remind !== undefined) {
+          at(remind);
+          if (remind <= now) {
+            pending.remind.push(id);
+          }
         }
         if (rename !== undefined) {
+          at(now);
           pending.rename.push(id);
         }
       }
@@ -721,6 +759,7 @@ export class Store {
     const asked = await this.asked();
     asked[message] = { since: now, thread };
     await this.kv.put("asked", JSON.stringify(asked));
+    await this.soon(now);
   }
 
   /** The texts that wait for their answer since before a time, other than those given up on. */
@@ -731,28 +770,45 @@ export class Store {
   }
 
   /**
-   * Give up on the texts whose answer didn't come in time: they wait no longer, but
-   * keep their thread for an answer that comes late, until they went before forget,
-   * when the pager forgets them. A write only when one changes.
+   * Give up on the texts whose answer didn't come in time, those that went before
+   * before: they wait no longer, but keep their thread for an answer that comes
+   * late, until they went before forget, when the pager forgets them. Each that
+   * it gives up on goes to giving first, which may fail, and then the text waits
+   * as before. One read, and a write only when one changes. Returns when the
+   * earliest of the rest went, of those that wait and of those given up on, each
+   * null when none is left.
    */
-  async giveUp(messages: number[], forget: number): Promise<void> {
+  async overdue(
+    before: number,
+    forget: number,
+    giving: (message: number) => Promise<void>,
+  ): Promise<{ waiting: number | null; kept: number | null }> {
     const asked = await this.asked();
+    const late: number[] = [];
     let changed = false;
     for (const [message, entry] of Object.entries(asked)) {
       if (entry.late !== undefined && entry.since < forget) {
         delete asked[message];
         changed = true;
-      } else if (
-        entry.late === undefined &&
-        messages.includes(Number(message))
-      ) {
-        asked[message] = { ...entry, late: true };
-        changed = true;
+      } else if (entry.late === undefined && entry.since < before) {
+        late.push(Number(message));
       }
+    }
+    for (const message of late) {
+      await giving(message);
+      asked[message] = { ...(asked[message] as Asked), late: true };
+      changed = true;
     }
     if (changed) {
       await this.keepAsked(asked);
     }
+    const since = (wanted: boolean) => {
+      const times = Object.values(asked)
+        .filter((entry) => (entry.late !== undefined) === wanted)
+        .map((entry) => entry.since);
+      return times.length === 0 ? null : Math.min(...times);
+    };
+    return { waiting: since(false), kept: since(true) };
   }
 
   /** Write the record of the texts that wait, or delete it when none is left. */

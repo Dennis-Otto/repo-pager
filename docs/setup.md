@@ -159,7 +159,7 @@ The app is private, so only the account that owns it can install it: yours, or t
 | Permission | Access | For |
 | --- | --- | --- |
 | Actions | Read and write | A workflow that fails on `main`, and the jobs that failed in it; 🔁 Rerun, which reads a run that failed and runs its failed jobs again; the pictures of a visual check |
-| Checks | Read | A required check of another app than GitHub Actions that fails on `main`; a release whose checks finished |
+| Checks | Read | The end of each run of a workflow, as the end of its check suite; a release whose checks finished; with the event *Check run*, which only you tick, a required check of another app than GitHub Actions that fails on `main` |
 | Code scanning alerts | Read | An alert of severity high or critical |
 | Contents | Read and write | 🔀 Merge of a release; the events to the control repository; whether a release is still a draft after a failed release, which GitHub lists only to a token that may write the contents |
 | Discussions | Read and write | A new discussion or a comment on one; ✅ Send of a reply in a discussion, as the app |
@@ -168,6 +168,10 @@ The app is private, so only the account that owns it can install it: yours, or t
 | Pull requests | Read | A new pull request, its reviews, the comments in its code, its new commits, a reopen and ready for review; the state of a release pull request; who opened a pull request whose pictures changed, and its head |
 | Repository security advisories | Read | A private vulnerability report and its advisory published; on day 6, whether a report still waits in triage, the one field that the pager reads of it |
 | Secret scanning alerts | Read | An alert of secret scanning and the file of its secret, never the secret |
+
+Its events are only those that the rules of the pager read: *Check suite*, *Code scanning alert*, *Discussion*, *Discussion comment*, *Issue comment*, *Issues*, *Pull request*, *Pull request review*, *Pull request review comment*, *Release*, *Repository advisory* and *Secret scanning alert*. Each event that GitHub delivers is a request of the Worker, and the free plan of Cloudflare takes 100,000 a day, so the app asks for none that comes many times per run of GitHub Actions: the end of a run comes once, as the end of its check suite, where *Workflow run* comes three times per run and *Check run* twice per job of it ([Costs](costs.md)).
+
+**An app that you registered with an older `github-app.json`** has the events *Check run* and *Workflow run*, which used up the free plan of Cloudflare on a busy day of a fleet of repositories: on 2026-11-16, ten repositories ran 11,746 runs of GitHub Actions, which came as about 160,000 deliveries. Drop both in the settings of the app, under *Permissions & events*, at the end of the page under *Subscribe to events*: untick **Check run** and **Workflow run**, keep **Check suite** ticked, and save the changes with the button at the bottom. Neither needs an installation to accept anything, and the pager needs neither since it reads runs from their check suites: it reads each run from its check suite and answers a delivery of either at once. Keep *Check run* only if a ruleset of `main` requires a check of another app than GitHub Actions, such as an outside CI, whose failure should page; it costs two requests per job of every run.
 
 An app that you registered before 🔁 **Rerun** came has *Actions: Read*: raise it to *Read and write* in the settings of the app, under *Permissions & events*, and accept the new permission for each installation, as GitHub asks you in a mail. Until then, the button says that GitHub refused it.
 

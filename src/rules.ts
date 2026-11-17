@@ -61,6 +61,13 @@ const SECRET_OPENS: ReadonlySet<string> = new Set([
 ]);
 /** The branches of release-please, whose pull requests are releases. */
 export const RELEASE_BRANCH = "release-please--";
+/**
+ * The app of GitHub Actions, as a check suite names it. Each run of a workflow is
+ * one check suite of this app, and the one event of its end tells the pager of
+ * the run: a run brings three events of its own and two for each of its jobs,
+ * and the free plan of Cloudflare takes 100,000 requests a day (docs/costs.md).
+ */
+export const ACTIONS_APP = "github-actions";
 
 interface Account {
   login?: string;
@@ -107,8 +114,14 @@ export interface Payload {
     check_suite?: { head_branch?: string | null };
   };
   check_suite?: {
+    /** The id of the suite, which a run of GitHub Actions names as its check_suite_id. */
+    id?: unknown;
     head_branch?: string | null;
-    pull_requests?: { number?: number }[];
+    head_sha?: string;
+    conclusion?: string | null;
+    /** The app whose checks the suite holds, such as github-actions for a run of a workflow. */
+    app?: { slug?: string } | null;
+    pull_requests?: { number?: number; head?: { sha?: string } }[];
   };
   workflow_run?: {
     id?: unknown;
@@ -335,6 +348,16 @@ export type Signal = Where &
         branch: string;
         /** What the issue becomes when its run can't be read: an entry of the alarm, as before. */
         fallback: { type: "failing" | "still-failing" } & Failure;
+      }
+    | {
+        type: "suite";
+        /**
+         * The check suite of a run of GitHub Actions that ended: the pager reads its
+         * run, and the run says what it means, as finishedRun() reads it.
+         */
+        suite: number;
+        /** The default branch of the repository. */
+        branch: string;
       }
     | { type: "release-check"; numbers: number[] }
     | { type: "release-updated"; number: number; sha: string }
@@ -1070,12 +1093,11 @@ function checkRun(payload: Payload, at: Where): Outcome {
   }
   const name = run?.name ?? "";
   // A job of GitHub Actions is a part of its workflow run, which pages as a thing
-  // of its own, once a rerun can't help any more. Its pass still takes out an
-  // entry of the alarm that the pager kept for it before it paged workflows.
+  // of its own, once a rerun can't help any more. The entry of the alarm that a
+  // pager before 0.7.0 kept for a job went with the next pass of that job, while
+  // the events of jobs came, and a pass now costs no more than its request.
   if (checkRunOf(run?.html_url ?? "") !== undefined) {
-    return FAILED.has(conclusion)
-      ? { ignored: "a job of a workflow, whose run pages" }
-      : { signal: { ...at, type: "recovered", key: `check:${name}` } };
+    return { ignored: "a job of a workflow, whose run pages" };
   }
   return {
     signal: {
@@ -1089,21 +1111,56 @@ function checkRun(payload: Payload, at: Where): Outcome {
   };
 }
 
+/**
+ * A check suite that ended. On a branch of a release, its pull request may be
+ * ready to merge, whichever app the checks are of. Of GitHub Actions, it is the
+ * end of a run of a workflow, whose run the pager reads only where the run can
+ * mean something: on the default branch, a failure, a pass or a cancel, and on a
+ * pull request of the repository itself, a pass at its head, which may be its
+ * visual check. Anything else is answered at once, before the store and the
+ * Durable Object, since a day of a fleet brings thousands of them.
+ */
 function checkSuite(payload: Payload, at: Where): Outcome {
   const suite = payload.check_suite;
   if (payload.action !== "completed") {
     return { ignored: `a check suite ${payload.action}` };
   }
-  if (!(suite?.head_branch ?? "").startsWith(RELEASE_BRANCH)) {
+  const branch = suite?.head_branch ?? "";
+  if (branch.startsWith(RELEASE_BRANCH)) {
+    const numbers = (suite?.pull_requests ?? []).flatMap((pull) =>
+      pull.number === undefined ? [] : [pull.number],
+    );
+    if (numbers.length === 0) {
+      return { ignored: "a check suite of no pull request" };
+    }
+    return { signal: { ...at, type: "release-check", numbers } };
+  }
+  if (suite?.app?.slug !== ACTIONS_APP) {
     return { ignored: "a check suite of no release" };
   }
-  const numbers = (suite?.pull_requests ?? []).flatMap((pull) =>
-    pull.number === undefined ? [] : [pull.number],
-  );
-  if (numbers.length === 0) {
-    return { ignored: "a check suite of no pull request" };
+  const id = runId(suite.id);
+  if (id === undefined) {
+    return { ignored: "a check suite without its id" };
   }
-  return { signal: { ...at, type: "release-check", numbers } };
+  const conclusion = suite.conclusion ?? "";
+  const main = payload.repository?.default_branch ?? "";
+  const ran: Outcome = {
+    signal: { ...at, type: "suite", suite: id, branch: main },
+  };
+  if (main !== "" && branch === main) {
+    return FAILED.has(conclusion) ||
+      conclusion === "success" ||
+      conclusion === "cancelled"
+      ? ran
+      : { ignored: `a workflow run that ended ${conclusion}` };
+  }
+  const sha = suite.head_sha ?? "";
+  const atHead = (suite.pull_requests ?? []).some(
+    (pull) => sha !== "" && pull.head?.sha === sha,
+  );
+  return conclusion === "success" && atHead
+    ? ran
+    : { ignored: "a workflow run of a pull request" };
 }
 
 /**
@@ -1207,21 +1264,12 @@ function mainRun(
   };
 }
 
-function workflowRun(payload: Payload, at: Where): Outcome {
-  if (payload.action !== "completed") {
-    return { ignored: `a workflow run ${payload.action}` };
-  }
-  return finishedRun(
-    payload.workflow_run,
-    at,
-    payload.repository?.default_branch ?? "",
-  );
-}
-
 /**
  * What a run of GitHub Actions that ended means, on a repository with this
- * default branch: as the event of its end says, and as the pager reads the run
- * that an issue of the bot-health bot names.
+ * default branch: as the pager reads the run of a check suite that ended, and
+ * the run that an issue of the bot-health bot names. The events of the run
+ * itself, workflow_run, the pager no longer reads: they come three times per run,
+ * where its check suite comes once.
  */
 export function finishedRun(
   run: Payload["workflow_run"],
@@ -1450,8 +1498,6 @@ export function classify(
       return checkRun(payload, at);
     case "check_suite":
       return checkSuite(payload, at);
-    case "workflow_run":
-      return workflowRun(payload, at);
     case "code_scanning_alert":
       return codeScanning(payload, at);
     case "secret_scanning_alert":

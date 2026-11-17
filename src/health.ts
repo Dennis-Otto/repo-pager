@@ -4,11 +4,13 @@
  * its maintainer, so a quiet day looks the same whether all is well or the pager
  * is dead. The answer says when the schedule last ran to its end and what last
  * failed in it, whether Telegram takes the token of the bot and delivers the updates of its webhook, whether
- * GitHub takes the key of the app, when the tokens of the maintainer expire, and
+ * GitHub takes the key of the app, when the tokens of the maintainer expire, the
+ * last daily limit of Cloudflare that it used up, and
  * which version runs and which release of the pager it waits for.
  * It names no secret and nothing that an issue says, and changes nothing.
  */
 import { describe } from "./context.ts";
+import { LIMIT_HIT, type LimitHit } from "./limits.ts";
 import type { Context } from "./pager.ts";
 import { type Token, type TokenState, watchedTokens } from "./tokens.ts";
 import { awaited, VERSION } from "./version.ts";
@@ -61,6 +63,12 @@ export interface Health {
    * `schedule` is one that the runs since haven't got past.
    */
   failure: Failure | null;
+  /**
+   * The last daily limit of the free plan of Cloudflare that the pager used up, and
+   * when, or null when it never did (src/limits.ts): the check of the control
+   * repository names it.
+   */
+  limit: LimitHit | null;
   telegram:
     | {
         ok: true;
@@ -135,6 +143,7 @@ export async function health(context: Context): Promise<Health> {
           },
     schedule: ran === undefined ? null : new Date(ran).toISOString(),
     failure: (await context.local.get<Failure>(FAILED)) ?? null,
+    limit: (await context.local.get<LimitHit>(LIMIT_HIT)) ?? null,
     telegram: await telegram(context),
     github: await github(context),
     tokens: await watchedTokens(context),

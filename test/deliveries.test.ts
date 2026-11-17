@@ -1026,7 +1026,7 @@ describe("a thing that fails in a run of the schedule", () => {
   it("goes on after a step that fails as a whole", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const w = await world({ tokenExpires: "2026-11-10" });
-    vi.spyOn(w.context.store, "waiting").mockRejectedValueOnce(
+    vi.spyOn(w.context.store, "overdue").mockRejectedValueOnce(
       new TypeError("KV GET failed"),
     );
     const reminder = await itemId(keys.reminder("claude-token:2026-11-10"));
@@ -1059,7 +1059,7 @@ describe("a thing that fails in a run of the schedule", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const broken = attempt("broken", 20, 500);
     const w = listing(await world(), [[broken]]);
-    vi.spyOn(w.context.store, "waiting").mockRejectedValueOnce(
+    vi.spyOn(w.context.store, "overdue").mockRejectedValueOnce(
       new TypeError("KV GET failed"),
     );
     vi.spyOn(w.context.local, "put").mockRejectedValueOnce(
@@ -1153,6 +1153,27 @@ describe("each signal applied twice", () => {
           head_branch: "main",
           run_attempt: 1,
         }),
+      )
+      .on(
+        "GET",
+        `/repos/${REPO}/actions/runs?check_suite_id=600&per_page=1`,
+        () =>
+          json({
+            workflow_runs: [
+              {
+                id: 60,
+                name: "Docs",
+                path: ".github/workflows/docs.yml",
+                event: "push",
+                status: "completed",
+                conclusion: "failure",
+                html_url: `https://github.com/${REPO}/actions/runs/60`,
+                head_branch: "main",
+                head_repository: { full_name: REPO },
+                run_attempt: 1,
+              },
+            ],
+          }),
       )
       .on("GET", `/repos/${REPO}/actions/runs/62`, () =>
         json({
@@ -1457,6 +1478,11 @@ describe("each signal applied twice", () => {
         },
       },
     ],
+    [
+      "suite: the end of a run that failed",
+      [],
+      { ...at, type: "suite", suite: 600, branch: "main" },
+    ],
     ["release-check", [], release],
     [
       "release-updated",
@@ -1519,6 +1545,7 @@ describe("each signal applied twice", () => {
       check: true,
       workflow: true,
       health: true,
+      suite: true,
       "release-check": true,
       "release-updated": true,
       "release-merged": true,

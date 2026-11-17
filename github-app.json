@@ -21,7 +21,6 @@
     "security_events": "read"
   },
   "default_events": [
-    "check_run",
     "check_suite",
     "code_scanning_alert",
     "discussion",
@@ -33,7 +32,6 @@
     "pull_request_review_comment",
     "release",
     "repository_advisory",
-    "secret_scanning_alert",
-    "workflow_run"
+    "secret_scanning_alert"
   ]
 }

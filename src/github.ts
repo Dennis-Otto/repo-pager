@@ -519,6 +519,26 @@ export class GitHub {
   }
 
   /**
+   * The run of GitHub Actions whose check suite this is, as its newest attempt
+   * stands, or null when GitHub knows no run of it.
+   */
+  async runOfSuite(
+    installation: number,
+    repo: string,
+    suite: number,
+  ): Promise<WorkflowRun | null> {
+    const token = await this.token(installation, repo, { actions: "read" });
+    const answer = await this.json<{ workflow_runs?: WorkflowRun[] }>(
+      await this.call(
+        token,
+        "GET",
+        `/repos/${repo}/actions/runs?check_suite_id=${suite}&per_page=1`,
+      ),
+    );
+    return answer.workflow_runs?.[0] ?? null;
+  }
+
+  /**
    * The jobs of an attempt of a run, the first hundred, each with its name, the
    * address of its log and its conclusion, which is empty while it runs.
    */

@@ -6,7 +6,9 @@
  * request, and gives each its deadline.
  */
 import { DEADLINES, type Deadlines } from "./deadlines.ts";
+import { noteSoon } from "./due.ts";
 import { GitHub, GitHubError } from "./github.ts";
+import { limitOf } from "./limits.ts";
 import type { Context } from "./pager.ts";
 import type { PagerEnv, Settings } from "./settings.ts";
 import { Store } from "./store.ts";
@@ -62,7 +64,7 @@ export function makeContext(
   };
   return {
     settings,
-    store: new Store(env.PAGER),
+    store: new Store(env.PAGER, (at) => noteSoon(local, at, now())),
     telegram: new Telegram(settings.telegramToken, settings.chatId, counted),
     github: new GitHub(
       settings.appId,
@@ -85,6 +87,10 @@ export function makeContext(
 export function describe(error: unknown): string {
   if (error instanceof GitHubError || error instanceof TelegramError) {
     return error.message;
+  }
+  const limit = limitOf(error);
+  if (limit !== null) {
+    return `the daily limit of the free plan of Cloudflare: ${limit}`;
   }
   return error instanceof Error ? error.name : "unknown error";
 }

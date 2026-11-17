@@ -4,13 +4,17 @@
  *
  * The handlers of the Worker: the webhook of Telegram at /telegram, that of the
  * GitHub App at /github, the answers of the control repository at /control, and the
- * schedule. The Worker turns away what no route serves; the one Durable Object of
- * src/serial.ts runs the rest, one change at a time. Each request proves where it
- * comes from before anything else runs, and no log names a secret or what an issue
- * says.
+ * schedule. The Worker turns away what no route serves, and answers each delivery
+ * of GitHub that means nothing itself; the one Durable Object of src/serial.ts runs
+ * the rest, one change at a time. Each request proves where it comes from before
+ * anything else runs, and no log names a secret or what an issue says.
  */
-import type { Route } from "./routes.ts";
+import { describe } from "./context.ts";
+import { limitOf, limitText, tellsNow } from "./limits.ts";
+import { type Delivered, type Route, screen } from "./routes.ts";
 import { type PagerEnv, readSettings, type Settings } from "./settings.ts";
+import { Telegram } from "./telegram.ts";
+import { texts } from "./texts.ts";
 
 export { Serial } from "./serial.ts";
 
@@ -34,6 +38,38 @@ function serial(env: PagerEnv) {
   return env.SERIAL.getByName("pager");
 }
 
+/**
+ * A delivery that means something, in the Durable Object. When the object refuses
+ * it, such as over its daily limit, the Worker tells the maintainer itself, once a
+ * day as far as it can, and answers 500, so that the schedule has GitHub deliver
+ * the event again once the object takes requests.
+ */
+async function deliver(
+  env: PagerEnv,
+  settings: Settings,
+  delivered: Delivered,
+): Promise<Response> {
+  try {
+    return await serial(env).deliver(settings, delivered);
+  } catch (error) {
+    console.error(`A GitHub ${delivered.event} failed:`, describe(error));
+    const limit = limitOf(error);
+    if (limit !== null && tellsNow(Date.now())) {
+      try {
+        await new Telegram(settings.telegramToken, settings.chatId, (...call) =>
+          fetch(...call),
+        ).say(limitText(texts(settings.language, settings.timeZone), limit));
+      } catch (untold) {
+        console.error(
+          `The pager couldn't tell of the limit ${limit}:`,
+          describe(untold),
+        );
+      }
+    }
+    return new Response("failed", { status: 500 });
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -53,7 +89,17 @@ export default {
     if (settings === null) {
       return new Response("Service Unavailable", { status: 503 });
     }
-    return serial(env).handle(settings, url.pathname as Route, request);
+    if (url.pathname === "/github") {
+      const screened = await screen(settings, request);
+      return screened instanceof Response
+        ? screened
+        : deliver(env, settings, screened);
+    }
+    return serial(env).handle(
+      settings,
+      url.pathname as Exclude<Route, "/github">,
+      request,
+    );
   },
 
   async scheduled(_controller, env, executionContext) {

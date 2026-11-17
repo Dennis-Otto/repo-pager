@@ -34,3 +34,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0026](0026-a-review-new-commits-and-a-reopen-are-news-of-a-contribution.md) | A review, new commits and a reopen are news of a contribution | accepted |
 | [0027](0027-the-album-of-a-visual-change-shows-one-comparison-per-picture.md) | The album of a visual change shows one comparison per picture, of one frame | accepted |
 | [0028](0028-an-ignored-thing-comes-back-with-a-button.md) | An ignored thing comes back with a button | accepted |
+| [0029](0029-a-run-comes-once-as-its-check-suite-and-the-worker-answers-what-means-nothing.md) | A run comes once, as its check suite, and the Worker answers what means nothing | accepted |

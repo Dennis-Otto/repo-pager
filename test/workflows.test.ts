@@ -762,3 +762,63 @@ describe("the message and the topic of a workflow", () => {
     expect(told.text).toContain("Docs fails on main");
   });
 });
+
+describe("the check suite of a run that ended", () => {
+  const suite: Signal = { ...at, type: "suite", suite: 600, branch: "main" };
+  const lookup = `${API}?check_suite_id=600&per_page=1`;
+
+  it("reads its run and does what the run means, a failure as its own event did", async () => {
+    const w = await world();
+    w.net
+      .on("GET", lookup, () =>
+        json({
+          workflow_runs: [
+            {
+              id: 60,
+              name: "Docs",
+              path: PATH,
+              event: "push",
+              status: "completed",
+              conclusion: "failure",
+              html_url: `${RUNS}/60`,
+              head_branch: "main",
+              head_repository: { full_name: REPO },
+              run_attempt: 1,
+            },
+          ],
+        }),
+      )
+      .on("GET", /\/actions\/runs\/60\/attempts\/1\/jobs/, () =>
+        json({ jobs: [] }),
+      );
+    expect(await apply(w.context, suite)).toBe("workflow waiting");
+    const known = (await w.context.store.get(
+      await itemId(keys.workflow(REPO, PATH)),
+    )) as Workflow;
+    expect(known).toMatchObject({ state: "waiting", run: 60, attempt: 1 });
+  });
+
+  it("says why a run means nothing, and a suite without a run", async () => {
+    const w = await world();
+    w.net.on("GET", lookup, () =>
+      json({
+        workflow_runs: [
+          {
+            id: 61,
+            path: PATH,
+            event: "pull_request",
+            conclusion: "success",
+            head_branch: "feat/blue",
+          },
+        ],
+      }),
+    );
+    expect(await apply(w.context, suite)).toBe(
+      "the run of the check suite: a workflow run of a pull request",
+    );
+    w.net.on("GET", lookup, () => json({ workflow_runs: [] }));
+    expect(await apply(w.context, suite)).toBe("a check suite without its run");
+    w.net.on("GET", lookup, () => json({}));
+    expect(await apply(w.context, suite)).toBe("a check suite without its run");
+  });
+});
