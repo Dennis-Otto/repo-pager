@@ -29,6 +29,7 @@ import {
   visible,
 } from "../src/render.ts";
 import {
+  doneTopicHoursOf,
   isLogin,
   ownersOf,
   type PagerEnv,
@@ -145,6 +146,7 @@ describe("settings", () => {
         language: "en",
         timeZone: "UTC",
         pictures: 3,
+        doneTopicHours: null,
       },
     });
     const all = readSettings({
@@ -155,6 +157,7 @@ describe("settings", () => {
       LANGUAGE: " de ",
       TIME_ZONE: " Europe/Berlin ",
       PICTURES: " 0 ",
+      DONE_TOPIC_HOURS: " 24 ",
     } as unknown as PagerEnv);
     expect(all).toMatchObject({
       settings: {
@@ -164,6 +167,7 @@ describe("settings", () => {
         language: "de",
         timeZone: "Europe/Berlin",
         pictures: 0,
+        doneTopicHours: 24,
       },
     });
     expect(
@@ -225,6 +229,7 @@ describe("settings", () => {
         LANGUAGE: "fr",
         TIME_ZONE: "Mars/Olympus_Mons",
         PICTURES: "10",
+        DONE_TOPIC_HOURS: "a day",
       } as unknown as PagerEnv),
     ).toEqual({
       missing: [
@@ -234,8 +239,21 @@ describe("settings", () => {
         "LANGUAGE (en or de)",
         "TIME_ZONE (a time zone such as Europe/Berlin)",
         "PICTURES (pictures of an album, from 0 to 3)",
+        "DONE_TOPIC_HOURS (hours from 0 to 336, or empty to keep the topics)",
       ],
     });
+  });
+
+  it("reads the hours of DONE_TOPIC_HOURS, none when it is empty", () => {
+    expect(doneTopicHoursOf(undefined)).toBeNull();
+    expect(doneTopicHoursOf(" ")).toBeNull();
+    expect(doneTopicHoursOf("0")).toBe(0);
+    expect(doneTopicHoursOf(" 24 ")).toBe(24);
+    expect(doneTopicHoursOf("0.5")).toBe(0.5);
+    expect(doneTopicHoursOf("336")).toBe(336);
+    for (const wrong of ["337", "-1", "1e1", "a day", "0x2", ".5"]) {
+      expect(doneTopicHoursOf(wrong)).toBeUndefined();
+    }
   });
 
   it("reads the pictures of an album of PICTURES, three when it is empty", () => {
@@ -354,7 +372,7 @@ describe("the buttons", () => {
       id: ID,
       version: null,
     });
-    expect(parsePress(`delete:${ID}`)).toBeNull();
+    expect(parsePress(`remove:${ID}`)).toBeNull();
     expect(parsePress("later:other")).toBeNull();
     fc.assert(
       fc.property(fc.string(), (data) => {

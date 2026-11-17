@@ -178,7 +178,27 @@ describe("the pager in German", () => {
       },
     });
     expect(w.net.telegram("sendMessage")[0]?.body.text).toBe(
-      CATALOGS.de["chat.help"],
+      `${CATALOGS.de["chat.help"]}\n\n${CATALOGS.de["chat.helpKeep"]}`,
+    );
+  });
+
+  it("says in /help what becomes of a done topic on the instance", async () => {
+    const help = async (doneTopicHours: number | null) => {
+      const w = await world({ language: "de", doneTopicHours });
+      await handleUpdate(w.context, {
+        message: {
+          message_id: 1,
+          chat: { id: CHAT },
+          from: { id: CHAT },
+          text: "/start",
+        },
+      });
+      return w.net.telegram("sendMessage")[0]?.body.text.split("\n\n").at(-1);
+    };
+    expect(await help(null)).toBe(CATALOGS.de["chat.helpKeep"]);
+    expect(await help(0)).toBe(CATALOGS.de["chat.helpClearNow"]);
+    expect(await help(24)).toBe(
+      "Ein erledigtes Thema geht von selbst, mit seinen Nachrichten, 24 Stunden nachdem die Sache erledigt war.",
     );
   });
 

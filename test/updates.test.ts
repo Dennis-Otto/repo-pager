@@ -175,12 +175,16 @@ describe("buttons", () => {
       state: "ignored",
       ignoredFrom: "draft",
     });
-    // Its only button, and a record that expires, as that of every closed thing.
+    // Bring back, 🗑 Delete topic, and a record that expires, as that of every
+    // closed thing.
     expect(
       w.net.telegram("editMessageText")[0]?.body.reply_markup,
     ).toMatchObject({
       inline_keyboard: [
-        [{ text: "↩️ Bring back", callback_data: `restore:${ID}` }],
+        [
+          { text: "↩️ Bring back", callback_data: `restore:${ID}` },
+          { text: "🗑 Delete topic", callback_data: `delete:${ID}` },
+        ],
       ],
     });
     expect(await w.context.store.unclosed()).toEqual([]);

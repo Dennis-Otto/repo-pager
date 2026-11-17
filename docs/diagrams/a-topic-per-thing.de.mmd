@@ -5,15 +5,16 @@ config:
 ---
 flowchart TB
     accTitle: Ein Thema pro Sache
-    accDescr: Eine neue Sache, etwa ein Alarm, ein Beitrag oder ein Release, öffnet ein eigenes Thema im Chat, benannt nach ihrem Repository und dem, was sie ist. Ihre Nachricht mit den Knöpfen kommt zuerst, und ihre Änderungen bearbeiten sie dort. Ihre Entwürfe, die Antwort von Fix, die Rückfrage von Bearbeiten, was Später zurückbringt, und die Antworten auf das, was der Maintainer im Thema fragt, folgen darin; seine Frage geht zusammen mit der Sache an das Steuer-Repository. Ist die Sache erledigt, bekommt ihr Thema ein Häkchen vor seinen Namen und bleibt. Löscht der Maintainer das Thema, öffnet die nächste Nachricht der Sache ein neues, mit der Nachricht der Sache zuerst. Ohne Threaded Mode, oder wenn Telegram das Thema oder eine Nachricht darin ablehnt, geht es mit der Sache in der Hauptansicht weiter, wie bisher. Ein abgelehntes Thema pausiert neue Themen für eine Stunde, doppelt so lange bis zu vier Stunden, und nach der Pause zieht die nächste Änderung einer offenen Sache sie leise in ein eigenes neues Thema.
+    accDescr: Eine neue Sache, etwa ein Alarm, ein Beitrag oder ein Release, öffnet ein eigenes Thema im Chat, benannt nach ihrem Repository und dem, was sie ist. Ihre Nachricht mit den Knöpfen kommt zuerst, und ihre Änderungen bearbeiten sie dort. Ihre Entwürfe, die Antwort von Fix, die Rückfrage von Bearbeiten, was Später zurückbringt, und die Antworten auf das, was der Maintainer im Thema fragt, folgen darin; seine Frage geht zusammen mit der Sache an das Steuer-Repository. Ist die Sache erledigt, bekommt ihr Thema ein Häkchen vor seinen Namen und den Knopf Thema löschen. Ein Druck löscht das Thema mit jeder Nachricht, und so auch der Zeitplan, sobald die Stunden um sind, die die Instanz setzt; ein Thema, das der Maintainer von Hand löscht, ist ebenso weg. Öffnet sich die Sache wieder, öffnet ihre nächste Nachricht ein neues Thema, mit der Nachricht der Sache zuerst. Ohne Threaded Mode, oder wenn Telegram das Thema oder eine Nachricht darin ablehnt, geht es mit der Sache in der Hauptansicht weiter, wie bisher. Ein abgelehntes Thema pausiert neue Themen für eine Stunde, doppelt so lange bis zu vier Stunden, und nach der Pause zieht die nächste Änderung einer offenen Sache sie leise in ein eigenes neues Thema.
 
     thing["Eine neue Sache: ein Alarm, ein Beitrag, ein Release, Code Scanning"]
     open["`**createForumTopic** öffnet ihr Thema, etwa 🚨 demo braucht dich`"]
     first["`Ihre Nachricht mit den Knöpfen kommt zuerst; ihre Änderungen bearbeiten sie dort`"]
     ask["`Der Maintainer fragt im Thema: Der Text geht **mit der Sache** an das Steuer-Repository`"]
     more["`Entwürfe, die Antwort von 🛠 Fix, ✏️ Bearbeiten, ⏰ Später und die Antworten folgen im Thema`"]
-    done["`**✅** vor ihrem Namen, wenn sie erledigt ist; das Thema bleibt`"]
-    gone["`Der Maintainer löscht das Thema: Die **nächste Nachricht** der Sache öffnet ein neues, ihre eigene Nachricht zuerst`"]
+    done["`**✅** vor ihrem Namen, wenn sie erledigt ist, und der Knopf 🗑 **Thema löschen**`"]
+    gone["`Das Thema geht mit jeder Nachricht: ein Druck, oder der Zeitplan nach **DONE_TOPIC_HOURS**`"]
+    again["`Die Sache öffnet sich wieder: Ihre **nächste Nachricht** öffnet ein neues Thema, ihre eigene Nachricht zuerst`"]
     main["`**Hauptansicht**, wie bisher: kein Threaded Mode, ein abgelehntes Thema oder eine abgelehnte Nachricht`"]
 
     thing --> open
@@ -22,7 +23,8 @@ flowchart TB
     ask -- "die Antwort" --> more
     first --> more
     more -- "gemergt, wieder grün, ignoriert" --> done
-    done -- "für den Maintainer erledigt" --> gone
+    done -- "gesehen, oder ihre Stunden sind um" --> gone
+    gone -- "ein neuer Kommentar, ein neuer Fehlschlag" --> again
     open -- "keine Themen, oder Telegram lehnt ab" --> main
     main -- "ihre nächste Änderung, sobald Telegram wieder Themen öffnet (nach der Pause)" --> open
 
@@ -31,6 +33,6 @@ flowchart TB
     classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
     classDef warn fill:#dc26262e,stroke:#dc2626,stroke-width:2px
     class thing,ask you
-    class open,first,more,gone bot
+    class open,first,more,gone,again bot
     class done done
     class main warn

@@ -25,6 +25,7 @@ import { TOPIC_COLORS } from "../src/telegram.ts";
 import { handleUpdate } from "../src/updates.ts";
 import {
   CHAT,
+  DELETE_TOPIC,
   json,
   type Net,
   START,
@@ -251,7 +252,8 @@ describe("a question of an agent", () => {
     expect(edited.text).toBe(
       "🤔 <b>A decision for you</b>\nWhich release goes first tonight?\n\n✅ Your answer: <b>The pager</b>",
     );
-    expect(edited.reply_markup.inline_keyboard).toEqual([]);
+    // Answered or taken back, it is done: its topic may go.
+    expect(edited.reply_markup.inline_keyboard).toEqual(DELETE_TOPIC);
     expect(
       w.net.telegram("editForumTopic").map((call) => call.body.name),
     ).toEqual(["✅ 🤔 Decision: Which release goes first tonight?"]);
@@ -430,7 +432,8 @@ describe("an answer in the maintainer's own words", () => {
     expect(edited.text).toBe(
       "🤔 <b>A decision for you</b>\nWhich release goes first tonight?\n\n✅ Your answer, in your own words:\nNeither: wait for &lt;the release&gt; of Paperless.",
     );
-    expect(edited.reply_markup.inline_keyboard).toEqual([]);
+    // Answered or taken back, it is done: its topic may go.
+    expect(edited.reply_markup.inline_keyboard).toEqual(DELETE_TOPIC);
     expect(
       w.net.telegram("editForumTopic").map((call) => call.body.name),
     ).toEqual(["✅ 🤔 Decision: Which release goes first tonight?"]);
@@ -570,7 +573,8 @@ describe("a question that its agent takes back", () => {
     expect(edited.text).toBe(
       "🤔 <b>A decision for you</b>\nWhich release goes first tonight?\n\n↩️ Your agent took this question back: it no longer waits for an answer.\n<i>No answer within the hour: the &lt;blueprint&gt; went first.</i>",
     );
-    expect(edited.reply_markup.inline_keyboard).toEqual([]);
+    // Answered or taken back, it is done: its topic may go.
+    expect(edited.reply_markup.inline_keyboard).toEqual(DELETE_TOPIC);
     expect(
       w.net.telegram("editForumTopic").map((call) => call.body.name),
     ).toEqual(["✅ 🤔 Decision: Which release goes first tonight?"]);

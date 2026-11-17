@@ -2,15 +2,16 @@
  * The answer to /open: what still waits for the maintainer, one line per thing that
  * offers a button, grouped by repository, each linked to its page on GitHub, with
  * when ⏰ Later brings it back. The topics of the chat keep done and ignored things
- * beside the open ones (decision 0005), so the list answers on demand what they
- * show only to a reader who tells ✅ from open by eye. It reads the records and
+ * beside the open ones (decision 0005) until 🗑 Delete topic or the hours of
+ * DONE_TOPIC_HOURS take them, so the list answers on demand what they show only to
+ * a reader who tells ✅ from open by eye. It reads the records and
  * nothing else, acts on nothing and sends nothing to the control repository: an
  * answer to a question, not a message that all is well.
  */
 import { allowed } from "./buttons.ts";
 import type { Context } from "./pager.ts";
 import { html, link, MAX_MESSAGE, securityPage, visible } from "./render.ts";
-import { type Item, isClosed } from "./store.ts";
+import { type Item, isDone } from "./store.ts";
 import { topicName } from "./topics.ts";
 
 /** The page of a thing on GitHub, or null for one that has none, such as a reminder. */
@@ -45,11 +46,13 @@ async function waiting(context: Context): Promise<Item[]> {
   const items = await Promise.all(ids.map((id) => context.store.get(id)));
   // The list may lag behind a write: only the record says whether it is open. A
   // thing that offers no button, such as a workflow whose rerun of After the
-  // checks may still pass or a release that merges, waits for GitHub, not for him.
+  // checks may still pass or a release that merges, waits for GitHub, not for him,
+  // and the 🗑 Delete topic of a done thing, such as a merged release, is no
+  // reason to wait.
   return items
     .filter(
       (item): item is Item =>
-        item !== null && !isClosed(item) && allowed(item).length > 0,
+        item !== null && !isDone(item) && allowed(item).length > 0,
     )
     .sort(
       (a, b) =>

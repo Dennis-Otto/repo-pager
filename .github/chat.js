@@ -143,6 +143,21 @@ window.CHAT = {
         }
       ]
     },
+    "done": {
+      "title": "✅ 🔴 Links in issue-assistant",
+      "subtitle": "Repo Pager",
+      "messages": [
+        {
+          "text": "🔴 <b>Links fails on main in <a>Dennis-Otto/issue-assistant</a></b>\n<a>The run that failed</a>\nFailed 2 times since 2026-11-04 at 05:00 UTC, the last time on 2026-11-04 at 07:00 UTC.\n✅ Green again.",
+          "buttons": [
+            [
+              "🗑 Delete topic"
+            ]
+          ],
+          "time": "07:58"
+        }
+      ]
+    },
     "topics": {
       "title": "Repo Pager",
       "subtitle": "bot",
@@ -320,6 +335,21 @@ window.CHAT = {
             ]
           ],
           "time": "09:21"
+        }
+      ]
+    },
+    "done": {
+      "title": "✅ 🔴 Links in issue-assistant",
+      "subtitle": "Repo Pager",
+      "messages": [
+        {
+          "text": "🔴 <b>Links scheitert auf main in <a>Dennis-Otto/issue-assistant</a></b>\n<a>Der gescheiterte Lauf</a>\n2-mal gescheitert seit dem 04.11.2026 um 05:00 UTC, zuletzt am 04.11.2026 um 07:00 UTC.\n✅ Wieder grün.",
+          "buttons": [
+            [
+              "🗑 Thema löschen"
+            ]
+          ],
+          "time": "07:58"
         }
       ]
     },

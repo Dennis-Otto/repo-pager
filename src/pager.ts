@@ -57,6 +57,7 @@ import {
   type IssueComment,
   type Item,
   isClosed,
+  isDone,
   itemId,
   type Job,
   keys,
@@ -77,6 +78,7 @@ import { type Texts, texts } from "./texts.ts";
 import {
   leaveMainView,
   moveIntoTopic,
+  noteDone,
   postBelow,
   retitle,
   sendThing,
@@ -150,7 +152,9 @@ function pastLater(item: Item): boolean {
  * old one: the record names the message that Telegram shows, so that nothing sends
  * the thing again, with live buttons on two messages. Returns whether a new
  * message went, which notifies, unlike an edit in place or a move, unless it is
- * silent. A thing that is past its "Later" forgets it (pastLater()).
+ * silent. A thing that is past its "Later" forgets it (pastLater()). A done thing
+ * whose topic went with its messages (clearTopic()) shows nothing while it stays
+ * done, and is only kept; once it opens again, it opens a new topic.
  */
 export async function show(
   context: Context,
@@ -160,6 +164,13 @@ export async function show(
 ): Promise<boolean> {
   if (pastLater(item)) {
     item.snoozedUntil = null;
+  }
+  if (item.cleared === true) {
+    if (isDone(item)) {
+      await context.store.put(item);
+      return false;
+    }
+    delete item.cleared;
   }
   const text = render(item, context.now(), context.t);
   const buttons = keyboard(item, context.t);
@@ -199,6 +210,7 @@ export async function show(
       await retitle(context, item);
     }
   } finally {
+    noteDone(context, item);
     await context.store.put(item);
   }
   return !shown;

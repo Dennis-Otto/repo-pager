@@ -3,6 +3,7 @@
 // and the private key of a test app, which each run makes anew. Nothing here is a
 // real token.
 import { env } from "cloudflare:test";
+import { expect } from "vitest";
 
 import { makeContext } from "../src/context.ts";
 import type { Deadlines } from "../src/deadlines.ts";
@@ -233,6 +234,7 @@ export async function settings(
     language: "en",
     timeZone: "UTC",
     pictures: 3,
+    doneTopicHours: null,
     ...overrides,
   };
 }
@@ -279,6 +281,16 @@ export function withControl(net: Net, installation = 77): Net {
 }
 
 export const REPO = "Dennis-Otto/demo";
+
+/** The keyboard of a thing that is done in its topic, in English: 🗑 Delete topic alone. */
+export const DELETE_TOPIC = [
+  [
+    {
+      text: "🗑 Delete topic",
+      callback_data: expect.stringMatching(/^delete:i[0-9a-f]{15}$/),
+    },
+  ],
+];
 
 /** A thing as the store keeps it, for the tests of the buttons. */
 export function base(

@@ -12,6 +12,7 @@ import {
   type Decision,
   type Entry,
   type Item,
+  isDone,
   SECRET_ENTRY,
 } from "./store.ts";
 import type { Keyboard } from "./telegram.ts";
@@ -29,6 +30,7 @@ export const ACTIONS = [
   "restore",
   "later",
   "done",
+  "delete",
   "choose",
 ] as const;
 
@@ -96,10 +98,22 @@ function bundle(item: Alarm | Alert): Action[] {
   }
 }
 
-/** The actions that a thing offers in its current state, in the order of its buttons. */
+/**
+ * The actions that a thing offers in its current state, in the order of its
+ * buttons. A thing that is done in a topic of its own offers 🗑 Delete topic, which
+ * deletes that topic with every message of it.
+ */
 export function allowed(item: Item): Action[] {
-  // ↩️ Bring back is all that an ignored thing offers: a press of ✖ Ignore that
-  // slipped, or an issue that turned out to matter, comes back with it.
+  const offered = actionsOf(item);
+  return isDone(item) && (item.topic ?? null) !== null
+    ? [...offered, "delete"]
+    : offered;
+}
+
+/** The actions of a thing in its current state, other than 🗑 Delete topic. */
+function actionsOf(item: Item): Action[] {
+  // ↩️ Bring back is all else that an ignored thing offers: a press of ✖ Ignore
+  // that slipped, or an issue that turned out to matter, comes back with it.
   if (item.state === "ignored") {
     return ["restore"];
   }
@@ -193,9 +207,6 @@ export function parsePress(data: string): Press | null {
 
 /** The buttons of a decision that is open: one option a row, each its own label. */
 function options(item: Decision): Keyboard {
-  if (!allowed(item).includes("choose")) {
-    return [];
-  }
   return item.options.map((option, place) => [
     { text: option, callback_data: `choose:${item.id}:${place}` },
   ]);
@@ -203,7 +214,7 @@ function options(item: Decision): Keyboard {
 
 /** The keyboard of a thing: its allowed actions, two buttons a row. */
 export function keyboard(item: Item, t: Texts): Keyboard {
-  if (item.kind === "decision") {
+  if (item.kind === "decision" && allowed(item).includes("choose")) {
     return options(item);
   }
   const labeled = allowed(item).filter(

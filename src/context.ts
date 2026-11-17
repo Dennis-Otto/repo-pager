@@ -64,7 +64,13 @@ export function makeContext(
   };
   return {
     settings,
-    store: new Store(env.PAGER, (at) => noteSoon(local, at, now())),
+    store: new Store(
+      env.PAGER,
+      (at) => noteSoon(local, at, now()),
+      settings.doneTopicHours === null
+        ? null
+        : settings.doneTopicHours * 60 * 60 * 1000,
+    ),
     telegram: new Telegram(settings.telegramToken, settings.chatId, counted),
     github: new GitHub(
       settings.appId,

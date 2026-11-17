@@ -76,6 +76,18 @@ interface Base {
    * kept it has none.
    */
   ignoredFrom?: Item["state"];
+  /**
+   * When the thing was done in the topic that it has, in milliseconds since 1970:
+   * where the instance sets DONE_TOPIC_HOURS, the schedule deletes that topic, with
+   * its messages, once they are over (clearTopics() of src/schedule.ts).
+   */
+  doneAt?: number;
+  /**
+   * Its topic went, with every message, while it was done: by 🗑 Delete topic or by
+   * the schedule. It shows nothing more while it stays done, and opens a new topic
+   * once it opens again (show() of src/pager.ts).
+   */
+  cleared?: true;
 }
 
 /** A discussion of GitHub, which a reply in its thread answers, as the app. */
@@ -492,6 +504,14 @@ export function isClosed(item: Item): boolean {
   return CLOSED.has(item.state);
 }
 
+/**
+ * Whether a thing is done, as the name of its topic shows: closed, or a release
+ * that is merged, whose publishing is left to its workflow.
+ */
+export function isDone(item: Item): boolean {
+  return isClosed(item) || (item.kind === "release" && item.state === "merged");
+}
+
 /** The id of the thing with this key: short enough for the data of a button. */
 export async function itemId(key: string): Promise<string> {
   return `i${(await sha256Hex(key)).slice(0, 15)}`;
@@ -577,6 +597,8 @@ export interface Pending {
   remind: string[];
   /** The things whose topic Telegram refused to rename. */
   rename: string[];
+  /** The things that are done, whose topic is due to go with its messages. */
+  clear: string[];
   /**
    * The earliest moment at which one of the things listed is due, those due now
    * included, or null when none waits for a time.
@@ -594,6 +616,8 @@ interface Marks {
   remind?: number;
   /** When Telegram first refused to rename its topic. */
   rename?: number;
+  /** When it was done in its topic, which goes once the hours of the instance are over. */
+  done?: number;
 }
 
 /**
@@ -638,10 +662,16 @@ export type Soon = (at: number) => Promise<void>;
 export class Store {
   private readonly kv: KVNamespace;
   private readonly soon: Soon;
+  /**
+   * How long the topic of a done thing stays, in milliseconds, from
+   * DONE_TOPIC_HOURS, or null when it stays for good.
+   */
+  readonly clearAfter: number | null;
 
-  constructor(kv: KVNamespace, soon: Soon) {
+  constructor(kv: KVNamespace, soon: Soon, clearAfter: number | null) {
     this.kv = kv;
     this.soon = soon;
+    this.clearAfter = clearAfter;
   }
 
   async get(id: string): Promise<Item | null> {
@@ -653,36 +683,43 @@ export class Store {
    * Keep a thing, with one write: the time of its "Later", that of its job of the
    * control repository and that of the reminder of a vulnerability report go into
    * the metadata of its record, which the list of pending() reads without a read of
-   * each record.
+   * each record, and so do the time of a refused rename and the moment at which a
+   * done thing was done in its topic.
    */
   async put(item: Item): Promise<void> {
     const options: KVNamespacePutOptions = {};
     const marks: Marks = {};
-    if (item.snoozedUntil !== null) {
-      marks.until = item.snoozedUntil;
-    }
-    if (item.jobStarted !== undefined) {
-      marks.job = item.jobStarted;
-    }
-    if (item.kind === "advisory" && item.remindAt !== undefined) {
-      marks.remind = item.remindAt;
-    }
     if (isClosed(item)) {
+      // A done thing waits for nothing but the rename of its topic, with ✅, and
+      // the end of that topic.
       options.expirationTtl = MONTH;
-      // A done thing waits for nothing but the rename of its topic, with ✅.
-      if (item.renameRefused !== undefined) {
-        options.metadata = { rename: item.renameRefused };
-      }
     } else {
-      if (item.renameRefused !== undefined) {
-        marks.rename = item.renameRefused;
+      if (item.snoozedUntil !== null) {
+        marks.until = item.snoozedUntil;
       }
-      if (Object.keys(marks).length > 0) {
-        options.metadata = marks;
+      if (item.jobStarted !== undefined) {
+        marks.job = item.jobStarted;
       }
+      if (item.kind === "advisory" && item.remindAt !== undefined) {
+        marks.remind = item.remindAt;
+      }
+    }
+    if (item.renameRefused !== undefined) {
+      marks.rename = item.renameRefused;
+    }
+    // Only a thing that is done in its topic keeps doneAt (noteDone() of src/topics.ts).
+    if (item.doneAt !== undefined) {
+      marks.done = item.doneAt;
+    }
+    if (Object.keys(marks).length > 0) {
+      options.metadata = marks;
     }
     await this.kv.put(`item:${item.id}`, JSON.stringify(item), options);
-    const times = Object.values((options.metadata ?? {}) as Marks) as number[];
+    const { done, ...timed } = marks;
+    const times = Object.values(timed) as number[];
+    if (done !== undefined && this.clearAfter !== null) {
+      times.push(done + this.clearAfter);
+    }
     if (times.length > 0) {
       await this.soon(Math.min(...times));
     }
@@ -691,9 +728,10 @@ export class Store {
   /**
    * The ids of the things whose "Later" is over at now, of those whose job of the
    * control repository went before jobsBefore, of the vulnerability reports
-   * whose reminder is due at now, and of those whose topic Telegram refused to
-   * rename, page by page of one list: the
-   * free plan of KV allows a thousand lists a day, and the schedule runs 96 times.
+   * whose reminder is due at now, of those whose topic Telegram refused to
+   * rename, and of the done things whose topic is due to go, page by page of one
+   * list: the free plan of KV allows a thousand lists a day, and the schedule runs
+   * 96 times.
    */
   async pending(
     now: number,
@@ -705,6 +743,7 @@ export class Store {
       waiting: [],
       remind: [],
       rename: [],
+      clear: [],
       next: null,
     };
     const at = (time: number) => {
@@ -720,7 +759,7 @@ export class Store {
       });
       for (const key of listed.keys) {
         const id = key.name.slice("item:".length);
-        const { until, job, remind, rename } = key.metadata ?? {};
+        const { until, job, remind, rename, done } = key.metadata ?? {};
         if (until !== undefined) {
           at(until);
           if (until <= now) {
@@ -743,6 +782,13 @@ export class Store {
         if (rename !== undefined) {
           at(now);
           pending.rename.push(id);
+        }
+        // Without DONE_TOPIC_HOURS, the topic of a done thing stays for good.
+        if (done !== undefined && this.clearAfter !== null) {
+          at(done + this.clearAfter);
+          if (done + this.clearAfter <= now) {
+            pending.clear.push(id);
+          }
         }
       }
       cursor = listed.list_complete ? null : listed.cursor;

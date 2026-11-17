@@ -7,7 +7,9 @@
  * again (src/advisories.ts), the reminder of each token of the maintainer comes
  * three weeks before it expires (src/tokens.ts), a workflow that failed on the
  * default branch and whose rerun didn't help shows (src/workflows.ts), a topic
- * whose rename Telegram refused gets its name (src/topics.ts), a release of the
+ * whose rename Telegram refused gets its name (src/topics.ts), the topic of a
+ * thing that is done goes with its messages once the hours of DONE_TOPIC_HOURS are
+ * over (clearTopics()), a release of the
  * pager that didn't go live is told once (src/version.ts), and an
  * event of GitHub that the pager failed to handle comes again
  * (src/deliveries.ts).
@@ -26,10 +28,10 @@ import { canShow, failedEvents, SUBREQUESTS } from "./deliveries.ts";
 import { earlier, idle, noteListed } from "./due.ts";
 import { errorOf, FAILED, type Failure, RAN } from "./health.ts";
 import { type Context, show } from "./pager.ts";
-import { beforeJob, type Item, type Pending } from "./store.ts";
+import { beforeJob, type Item, isDone, type Pending } from "./store.ts";
 import { REACTIONS } from "./telegram.ts";
 import { refreshReminder, remindTokens } from "./tokens.ts";
-import { retitle } from "./topics.ts";
+import { clearTopic, retitle } from "./topics.ts";
 import { checkDeployed } from "./version.ts";
 import { canSettle, settle } from "./workflows.ts";
 
@@ -55,6 +57,19 @@ export const RENAME_FOR = DAY;
 
 /** The most topics that one run of the schedule tries to rename, each one call to Telegram. */
 export const MAX_RENAMES = 5;
+
+/**
+ * The most topics of done things that one run of the schedule deletes, each one
+ * call to Telegram and one write: the rest goes with the next run.
+ */
+export const MAX_CLEARS = 10;
+
+/**
+ * How long the schedule tries again to delete the topic of a done thing that
+ * Telegram refused to delete, after it was due: then the topic stays, with ✅ and
+ * its button 🗑 Delete topic.
+ */
+export const CLEAR_FOR = DAY;
 
 /**
  * Do one thing of a step of the schedule apart from the others, such as the
@@ -231,6 +246,50 @@ async function renameAgain(
 }
 
 /**
+ * Delete the topics of the done things whose hours of DONE_TOPIC_HOURS are over,
+ * each with every message of it, at most MAX_CLEARS per run and only while the run
+ * has calls to the network left: the rest waits for the next run. The list says
+ * which are due without a read of each record, and only a deletion reads and
+ * writes one, so that this costs no request of its own. A thing that opened again
+ * or lost its topic since the list is left alone. A topic that Telegram refuses to
+ * delete is tried again with the next run, for CLEAR_FOR, and then stays.
+ */
+async function clearTopics(
+  context: Context,
+  due: string[],
+  apart: Apart,
+): Promise<string[]> {
+  const after = context.store.clearAfter;
+  for (const id of due.slice(0, MAX_CLEARS)) {
+    if (after === null || context.subrequests() >= SUBREQUESTS) {
+      break;
+    }
+    await apart(`thing ${id}`, async () => {
+      // The list may lag behind a write: only the record says whether it is due.
+      const item = await context.store.get(id);
+      const since = item?.doneAt;
+      if (
+        item === null ||
+        since === undefined ||
+        since + after > context.now() ||
+        !isDone(item) ||
+        (await clearTopic(context, item))
+      ) {
+        return;
+      }
+      if (since + after <= context.now() - CLEAR_FOR) {
+        console.warn(
+          `Telegram refused to delete topic ${item.topic?.thread} for a day; it stays`,
+        );
+        delete item.doneAt;
+        await context.store.put(item);
+      }
+    });
+  }
+  return [];
+}
+
+/**
  * One run of the schedule; returns the ids of the things that it showed. The
  * events that failed come last: they take the calls to the network that the steps
  * before them left, and the requests of the events that GitHub delivers again wait
@@ -243,7 +302,7 @@ export async function runSchedule(context: Context): Promise<string[]> {
   const listed = context.now();
   const quiet = await idle(context.local, listed);
   const pending: Pending = quiet
-    ? { due: [], waiting: [], remind: [], rename: [], next: null }
+    ? { due: [], waiting: [], remind: [], rename: [], clear: [], next: null }
     : await context.store.pending(listed, listed - ANSWER_WITHIN);
   // The texts that wait for their answer are due until the run looked at them.
   let asked: number | null = listed;
@@ -304,6 +363,9 @@ export async function runSchedule(context: Context): Promise<string[]> {
   );
   await step("the renames of topics", (each) =>
     renameAgain(context, pending.rename, each),
+  );
+  await step("the topics of done things", (each) =>
+    clearTopics(context, pending.clear, each),
   );
   await step("the release of the pager", async () => {
     await checkDeployed(context);

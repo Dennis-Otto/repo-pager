@@ -107,6 +107,12 @@ function threadNotFound(error: unknown): boolean {
   );
 }
 
+/**
+ * What Telegram says of a topic that it doesn't find, such as one that is deleted
+ * already: its thread is unknown, or the id of the topic is.
+ */
+const TOPIC_GONE = /message thread not found|TOPIC_ID_INVALID|TOPIC_DELETED/i;
+
 interface Answer {
   ok?: boolean;
   error_code?: number;
@@ -604,17 +610,31 @@ export class Telegram {
     }
   }
 
-  /** Delete a topic with its messages; one that is gone already is no error. */
-  async removeTopic(thread: number): Promise<void> {
+  /**
+   * Delete a topic with every message of it, which deleteForumTopic does in a
+   * private chat with topics for a topic that the bot opened, and in a group for a
+   * bot with the right to delete messages, at any age, unlike deleteMessage, which
+   * deletes none older than 48 hours. Returns whether the topic is gone: deleted
+   * now, or one that Telegram doesn't find any more, such as one that the
+   * maintainer deleted; a refusal, such as a 429 that asks to wait long, or no
+   * answer, leaves it, and the log names why.
+   */
+  async removeTopic(thread: number): Promise<boolean> {
     try {
       await this.call("deleteForumTopic", {
         chat_id: this.chatId,
         message_thread_id: thread,
       });
+      return true;
     } catch (error) {
       if (!(error instanceof TelegramError)) {
         throw error;
       }
+      if (TOPIC_GONE.test(error.description)) {
+        return true;
+      }
+      console.warn(`Telegram deleteForumTopic: ${error.description}`);
+      return false;
     }
   }
 }

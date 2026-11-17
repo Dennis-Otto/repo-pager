@@ -18,6 +18,7 @@ import {
   type Alert,
   type Contribution,
   type Item,
+  isDone,
   itemId,
   keys,
   type Release,
@@ -28,7 +29,6 @@ import { Telegram, TOPIC_COLORS } from "../src/telegram.ts";
 import { texts } from "../src/texts.ts";
 import {
   about,
-  isDone,
   leaveMainView,
   MAX_ABOUT,
   MAX_LINKS,
@@ -605,7 +605,8 @@ describe("without topics", () => {
     });
     const metadata = async () =>
       (await env.PAGER.list({ prefix: `item:${id}` })).keys[0]?.metadata;
-    expect(await metadata()).toEqual({ rename: START });
+    // It was done in its topic once it merged, which the list reads as well.
+    expect(await metadata()).toEqual({ rename: START, done: START + 60_000 });
     // A run while Telegram still refuses keeps everything as it is.
     w.clock.now += 15 * 60_000;
     expect(await runSchedule(w.context)).not.toContain(id);
@@ -617,7 +618,7 @@ describe("without topics", () => {
     const renamed = await stored(w, keys.release(REPO));
     expect(renamed?.topic).toEqual({ thread: 900, name: "✅ 📦 demo 1.16.0" });
     expect(renamed).not.toHaveProperty("renameRefused");
-    expect(await metadata()).toBeUndefined();
+    expect(await metadata()).toEqual({ done: START + 60_000 });
     const calls = names(w, "editForumTopic").length;
     await runSchedule(w.context);
     expect(names(w, "editForumTopic")).toHaveLength(calls);

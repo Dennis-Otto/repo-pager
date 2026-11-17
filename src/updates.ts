@@ -138,9 +138,14 @@ async function act(
   const reply = await press(context, item, parsed);
   await answer(reply.text, reply.alert);
   // A button of another message than the thing's own is that of a proposal of the
-  // control repository: it acts once, so it goes.
+  // control repository: it acts once, so it goes. A topic that 🗑 Delete topic
+  // deleted took the message of its button with it.
   const shownIn = query.message?.message_id;
-  if (shownIn !== undefined && shownIn !== item.messageId) {
+  if (
+    shownIn !== undefined &&
+    shownIn !== item.messageId &&
+    item.cleared !== true
+  ) {
     await context.telegram.clear(shownIn);
   }
   return `${parsed.action}: ${reply.text}`;
@@ -371,6 +376,22 @@ export async function handleUpdate(
   }
 }
 
+/**
+ * The first message of the pager, the answer to /start and /help, with what
+ * becomes of a done topic on this instance (DONE_TOPIC_HOURS).
+ */
+function help(context: Context): string {
+  const { t } = context;
+  const hours = context.settings.doneTopicHours;
+  let done = t("chat.helpKeep");
+  if (hours === 0) {
+    done = t("chat.helpClearNow");
+  } else if (hours !== null) {
+    done = t("chat.helpClear", { hours });
+  }
+  return `${t("chat.help")}\n\n${done}`;
+}
+
 /** A text of the maintainer: help, the status, what is open, a new draft, an answer in words or free text. */
 async function written(
   context: Context,
@@ -379,7 +400,7 @@ async function written(
   progress: Progress,
 ): Promise<string> {
   if (/^\/(start|help)\b/.test(text)) {
-    await context.telegram.say(context.t("chat.help"), threadOf(message));
+    await context.telegram.say(help(context), threadOf(message));
     return "help";
   }
   if (/^\/status\b/.test(text)) {
