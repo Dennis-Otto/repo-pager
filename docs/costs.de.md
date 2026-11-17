@@ -15,6 +15,7 @@ Der Pager läuft im kostenlosen Plan von Cloudflare, dessen Limits pro Tag zähl
 | Löschungen in Workers KV | 1.000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
 | Auflistungen von Workers KV | 1.000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
 | Ereignisse von Workers Logs | 200.000 | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) |
+| Aufnahme von Observability, die Ereignisse von Workers Logs und die Traces zusammen, ab 2026-12-01 | 0,5 GB | [Observability pricing](https://developers.cloudflare.com/observability/pricing/) |
 
 Jedes Ereignis, das GitHub zustellt, jedes Update von Telegram und jeder Lauf des Zeitplans ist eine Anfrage an den Worker. Über diesem Limit beantwortet Cloudflare jede Anfrage mit seinem Fehler 1027, bevor der Worker läuft, was der tägliche *Health*-Check des Steuer-Repositorys als 429 sieht. Über jedem anderen Limit scheitert der Zugriff im Worker: Der Pager sagt es dir dann einmal an diesem Tag in Telegram, soweit er noch kann, und seine Antwort an den Health-Check trägt das Limit in ihrem Feld `limit` (`src/limits.ts`). Ein Ereignis, das gescheitert ist, kommt mit dem Zeitplan erneut, sobald das Limit zurückgesetzt ist, wie [So arbeitet er](how-it-works.md#wenn-ein-ereignis-scheitert) beschreibt.
 
@@ -53,10 +54,32 @@ Am 2026-11-16 liefen in den zehn Repositorys des Maintainers 11.746 Läufe von G
 | Anfragen an das Durable Object | etwa 160.000 | etwa 7.900 |
 | Lesezugriffe auf Workers KV | Tausende, einer pro grünem Job auf `main` | etwa 6.800 |
 | Auflistungen von Workers KV | 96 | höchstens 4, solange nichts fällig ist |
-| Ereignisse von Workers Logs | etwa 320.000 | etwa 21.100 |
+| Ereignisse von Workers Logs | etwa 320.000 | keine, solange nichts scheitert, etwa 23.600, sollte jede Zustellung scheitern, die etwas bedeutet |
 
 Das ist unter einem Drittel jedes Limits. Der vollste Tag dieser Woche, 2026-11-13, hatte 36.380 Läufe: etwa 41.000 Anfragen an den Worker, noch unter der Hälfte jedes Limits.
 
-Workers Logs behält ein Ereignis für jede Anfrage an den Worker und an das Durable Object und eines für jede Zeile, die einer von beiden schreibt; der Pager schreibt nur eine Zeile, wenn etwas scheitert. Die Logs bleiben vollständig (`observability` in `wrangler.jsonc`, ohne Stichprobe): Sie sagen, warum ein Ereignis gescheitert ist, und der volle Tag braucht etwa 21.100 Ereignisse von 200.000.
+Workers Logs behält ein Ereignis für jede Zeile, die der Worker oder das Durable Object schreibt, und von sich aus eines mehr für jede Anfrage an einen von beiden, ihr Aufruf-Log. Der Pager schreibt nur eine Zeile, wenn etwas scheitert, und `wrangler.jsonc` schaltet die Aufruf-Logs ab, sodass ein Tag, an dem nichts scheitert, gar kein Ereignis schreibt; mit ihnen schrieb der volle Tag etwa 21.100. Sollte jede Zustellung, die etwas bedeutet, den ganzen Tag scheitern, in jedem ihrer drei Versuche, etwa solange GitHub ausfällt, schreibt der Tag etwa 23.600 Ereignisse, unter einem Drittel der 200.000, und bei großzügigen 4 KB pro Ereignis etwa 97 MB, unter einem Drittel der 0,5 GB, die Cloudflare ab 2026-12-01 zählt. Auch am vollsten Tag der Woche bliebe jede Zeile erhalten. `test/costs.test.ts` hält beides fest.
 
 Die meisten dieser Läufe sind Läufe der Workflows des Blueprints, die ein `workflow_run` startet und die ihre Jobs überspringen: Sie kosten je eine Anfrage und nichts weiter. Eine Flotte mit noch mehr Läufen kann die Anfragen an den Worker trotzdem aufbrauchen, denn jeder Lauf ist eine Zustellung; der Plan Workers Paid hat kein Tageslimit für Anfragen.
+
+## Workers Logs
+
+Cloudflare zählt jedes Ereignis von Workers Logs gegen ein Tageskontingent, und sobald es aufgebraucht ist, nimmt es keine Ereignisse mehr an, bis das Kontingent um 00:00 UTC zurückgesetzt wird: Gerade die Zeilen, die sagen, warum etwas gescheitert ist, gingen verloren. Darum behält der Pager nur diese, und alle davon. Der Block `observability` in `wrangler.jsonc` sagt es so, und `test/costs.test.ts` schlägt fehl, wenn er es nicht mehr tut:
+
+| Einstellung | Wert | Was sie tut |
+| --- | --- | --- |
+| `enabled` | `true` | Workers Logs behält die Logs des Workers. |
+| `head_sampling_rate` | `1` | Jede Anfrage behält ihre Zeilen, keine fällt zufällig weg: Ein Fehler ist nie der, den eine Stichprobe verworfen hat. |
+| `logs.invocation_logs` | `false` | Kein Ereignis für jede Anfrage an den Worker und jeden Aufruf des Durable Objects, nur die Zeilen, die der Pager schreibt. |
+| `traces.enabled` | `false` | Keine Traces, deren Spans gegen dasselbe Kontingent von Observability zählen. |
+
+Die Einstellungen sind die von [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) und der [Konfiguration von Wrangler](https://developers.cloudflare.com/workers/wrangler/configuration/#observability). Eine kleinere `head_sampling_rate` spart auch Ereignisse, verwirft aber ganze Anfragen nach Zufall und Fehler mit ihnen, darum nutzt der Pager sie nicht.
+
+### Was du weiterhin siehst
+
+- **Jeden Fehler mit seinem Grund** in den Logs des Workers im Dashboard von Cloudflare, drei Tage lang, ab 2026-12-01 sieben: Die Zeile nennt das Ereignis von GitHub, das Update von Telegram oder den Lauf des Zeitplans, der gescheitert ist, und die Antwort, an der er scheiterte, etwa `A GitHub check_suite failed: GitHub answered 503: unavailable`. Eine Zustellung, die endgültig gescheitert ist, wird ein Eintrag des Alarms des Steuer-Repositorys, wie [So arbeitet er](how-it-works.md#wenn-ein-ereignis-scheitert) beschreibt.
+- **Jede Zustellung von GitHub und die Antwort des Pagers darauf** mit ihrem Status in den letzten Zustellungen auf der Seite *Advanced* deiner GitHub App, wo du eine auch erneut zustellen kannst.
+- **Die Anfragen, die Fehler und die Zeit des Workers und des Durable Objects** in den Metriken des Workers im Dashboard, die nichts vom Kontingent von Observability verbrauchen.
+- **Jede Anfrage live** mit ihrem Aufruf-Log in `npx wrangler tail` oder in der Live-Ansicht der Logs, solange du zusiehst; Cloudflare behält keine davon.
+
+Was du nicht mehr siehst, ist ein gespeicherter Eintrag für jede Anfrage, die gut ging: Für eine vergangene Anfrage, die nicht scheiterte, sind die letzten Zustellungen der App der Nachweis.

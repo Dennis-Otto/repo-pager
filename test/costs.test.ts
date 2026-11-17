@@ -2,15 +2,17 @@
 // the GitHub App goes through the Worker as Cloudflare runs it, and the test
 // counts what it takes of each daily limit of src/limits.ts: the requests of the
 // Worker and of its Durable Object, the reads, writes, deletes and lists of Workers
-// KV, and the rows that the storage of the object writes. Then it holds a busy day
-// of a real fleet below a third of each limit, and fails when a change makes a
-// kind of event dearer. docs/costs.md explains the numbers.
+// KV, the rows that the storage of the object writes, and the events and bytes of
+// Workers Logs as wrangler.jsonc configures it. Then it holds a busy day of a real
+// fleet below a third of each limit, and fails when a change makes a kind of event
+// dearer. docs/costs.md explains the numbers.
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import text from "../github-app.json?raw";
 import { Memory, makeContext } from "../src/context.ts";
 import { hmacHex } from "../src/crypto.ts";
+import { MAX_ATTEMPTS } from "../src/deliveries.ts";
 import {
   DUE,
   type Due,
@@ -32,6 +34,7 @@ import {
   type PagerEnv,
   type Settings,
 } from "../src/settings.ts";
+import wrangler from "../wrangler.jsonc?raw";
 import {
   appKey,
   CHAT,
@@ -51,8 +54,13 @@ interface Cost {
   kvDeletes: number;
   kvLists: number;
   rowsWritten: number;
-  /** Events of Workers Logs: one per request of the Worker or of the object, and each line logged. */
+  /**
+   * Events of Workers Logs: each line logged, and one per request of the Worker or
+   * of the object where wrangler.jsonc keeps the logs of the invocations.
+   */
   logs: number;
+  /** Bytes that those events take of the ingestion of Cloudflare Observability. */
+  ingested: number;
 }
 
 const FREE: Cost = { ...LIMITS };
@@ -67,6 +75,7 @@ function nothing(): Cost {
     kvLists: 0,
     rowsWritten: 0,
     logs: 0,
+    ingested: 0,
   };
 }
 
@@ -176,16 +185,53 @@ function lines(): number {
   return spies.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
 }
 
+/** The settings of Workers Logs in wrangler.jsonc. */
+interface Observability {
+  enabled?: boolean;
+  head_sampling_rate?: number;
+  logs?: {
+    enabled?: boolean;
+    head_sampling_rate?: number;
+    invocation_logs?: boolean;
+  };
+  traces?: { enabled?: boolean };
+  issues?: { enabled?: boolean };
+}
+
+/** The observability of wrangler.jsonc, whose comments take whole lines. */
+const OBSERVABILITY = (
+  JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, "")) as {
+    observability?: Observability;
+  }
+).observability;
+
 /**
- * Workers Logs keeps one event for each invocation, of the Worker and of the
- * Durable Object, and one for each line that either logs.
+ * Whether Workers Logs keeps an event for each invocation, of the Worker and of
+ * the Durable Object, besides one for each line that either logs: by default it
+ * does, and `invocation_logs: false` turns it off.
  */
+const INVOCATIONS = OBSERVABILITY?.logs?.invocation_logs !== false;
+
+/**
+ * A generous size of one event of Workers Logs, for the ingestion of Cloudflare
+ * Observability, which counts the uncompressed size of each event with the
+ * attributes that Cloudflare adds to it: the pager's lines are short, and the test
+ * of a failure below holds each under a tenth of this.
+ */
+const EVENT_BYTES = 4_096;
+
 function logged(before: number): void {
-  cost.logs = cost.requests + cost.objects + lines() - before;
+  cost.logs =
+    (INVOCATIONS ? cost.requests + cost.objects : 0) + lines() - before;
+  cost.ingested = cost.logs * EVENT_BYTES;
 }
 
 /** Deliver one event of the GitHub App, signed, and return what it cost. */
-async function price(event: string, payload: object): Promise<Cost> {
+async function price(
+  event: string,
+  payload: object,
+  status = 200,
+): Promise<Cost> {
   const environment = await counted();
   const body = JSON.stringify({
     installation: { id: 9 },
@@ -206,7 +252,7 @@ async function price(event: string, payload: object): Promise<Cost> {
     }) as Request<unknown, IncomingRequestCfProperties>,
     environment,
   );
-  expect(response.status).toBe(200);
+  expect(response.status).toBe(status);
   logged(before);
   return cost;
 }
@@ -296,7 +342,7 @@ afterEach(() => {
 });
 
 /** Only the request of the Worker, which answers it itself. */
-const ANSWERED: Cost = { ...nothing(), requests: 1, logs: 1 };
+const ANSWERED: Cost = { ...nothing(), requests: 1 };
 
 /** A request that the Durable Object serves, which reads one record. */
 const ONE_READ: Cost = {
@@ -304,7 +350,6 @@ const ONE_READ: Cost = {
   requests: 1,
   objects: 1,
   kvReads: 1,
-  logs: 2,
 };
 
 /**
@@ -427,7 +472,6 @@ const EXPECTED: Record<keyof typeof MEASURED, Cost> = {
     ...nothing(),
     requests: 1,
     objects: 1,
-    logs: 2,
   },
   "check_suite: a run of a pull request that failed": ANSWERED,
   "check_suite: a run of a tag or of a branch without a pull request, such as the verification of a release":
@@ -437,7 +481,6 @@ const EXPECTED: Record<keyof typeof MEASURED, Cost> = {
     ...nothing(),
     requests: 1,
     objects: 1,
-    logs: 2,
   },
   "pull_request: of the maintainer or of a bot": ANSWERED,
   "issue_comment: of the maintainer or of a bot": ANSWERED,
@@ -493,7 +536,6 @@ describe("the schedule", () => {
       // The time of the run, which the health check reads, and what the run
       // read of the deliveries of the webhook.
       rowsWritten: 2,
-      logs: 2,
     });
   });
 
@@ -709,7 +751,10 @@ describe("a busy day of a fleet", () => {
       kvDeletes: 0,
       kvLists: 4,
       rowsWritten: 192,
-      logs: 21_135,
+      // A day on which nothing fails logs nothing: 21,135 events, before
+      // wrangler.jsonc turned off the logs of the invocations.
+      logs: 0,
+      ingested: 0,
     });
     for (const limit of Object.keys(FREE) as (keyof Cost)[]) {
       expect(total[limit], limit).toBeLessThan(FREE[limit] / 3);
@@ -746,5 +791,71 @@ describe("a busy day of a fleet", () => {
     for (const event of manifest.default_events) {
       expect(budgeted.has(event) || few.has(event), event).toBe(true);
     }
+  });
+});
+
+describe("Workers Logs", () => {
+  it("keeps every line that the pager logs, and no event for each invocation", () => {
+    // wrangler.jsonc: logs on, unsampled, without the logs of the invocations,
+    // and nothing else that counts against the allowance of Observability.
+    expect(OBSERVABILITY?.enabled).toBe(true);
+    expect(OBSERVABILITY?.head_sampling_rate ?? 1).toBe(1);
+    expect(OBSERVABILITY?.logs?.head_sampling_rate ?? 1).toBe(1);
+    expect(OBSERVABILITY?.logs?.enabled ?? true).toBe(true);
+    expect(INVOCATIONS).toBe(false);
+    expect(OBSERVABILITY?.traces?.enabled ?? false).toBe(false);
+    expect(OBSERVABILITY?.issues?.enabled ?? false).toBe(false);
+  });
+
+  /** A run on main whose check suite the pager can't read: GitHub fails. */
+  async function failing(): Promise<Cost> {
+    net.on(
+      "GET",
+      /\/actions\/runs\?check_suite_id=600&per_page=1$/,
+      () => new Response("unavailable", { status: 503 }),
+    );
+    return price("check_suite", suite({ conclusion: "failure" }), 500);
+  }
+
+  it("logs a delivery that failed in a line that tells which and why", async () => {
+    const failed = await failing();
+    expect(failed.logs).toBe(1);
+    const said = spies
+      .flatMap((spy) => spy.mock.calls)
+      .map((args) => (args as unknown[]).map(String).join(" "));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain("check_suite");
+    expect(said[0]).toContain("503");
+    // Short, as EVENT_BYTES assumes.
+    expect((said[0] as string).length).toBeLessThan(EVENT_BYTES / 10);
+  });
+
+  /**
+   * The events of a day on which every delivery that the Durable Object serves
+   * fails, as the one of failing() does, in each of its attempts, and each run of
+   * the schedule logs a line and fails: GitHub or Telegram down all day.
+   */
+  async function failingDay(scale: number): Promise<number> {
+    const failed = await failing();
+    const served = Object.entries({ ...DAY.suites, ...DAY.others }).reduce(
+      (sum, [kind, times]) => sum + (EXPECTED[kind] as Cost).objects * times,
+      0,
+    );
+    return Math.ceil(
+      (served * MAX_ATTEMPTS * failed.logs + DAY.schedules * 2) * scale,
+    );
+  }
+
+  it("stays below a third of its allowances on the busy day, should every delivery that means something fail", async () => {
+    const events = await failingDay(1);
+    expect(events).toBe(23_613);
+    expect(events).toBeLessThan(FREE.logs / 3);
+    expect(events * EVENT_BYTES).toBeLessThan(FREE.ingested / 3);
+  });
+
+  it("keeps every line on the busiest day of the week too, should every such delivery fail", async () => {
+    const events = await failingDay(BUSIEST);
+    expect(events).toBeLessThan(FREE.logs / 2);
+    expect(events * EVENT_BYTES).toBeLessThan(FREE.ingested);
   });
 });

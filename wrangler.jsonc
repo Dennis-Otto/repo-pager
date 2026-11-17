@@ -70,7 +70,19 @@
     // next run of the schedule, empty to keep done topics until you delete them.
     "DONE_TOPIC_HOURS": "24"
   },
+  // Workers Logs keeps each line that the pager logs, which it does only when
+  // something fails, with why: every such line, without sampling. It keeps no
+  // event for each invocation, which would be one for each delivery of GitHub and
+  // each call of the Durable Object, tens of thousands on a busy day, and say no
+  // more than the recent deliveries of the GitHub App and the metrics of the
+  // Worker do, which cost nothing of the daily allowance of Observability. No
+  // traces either, which count against the same allowance. docs/costs.md says what
+  // you still see, and test/costs.test.ts holds this.
+  // https://developers.cloudflare.com/workers/observability/logs/workers-logs/
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "invocation_logs": false },
+    "traces": { "enabled": false }
   }
 }

@@ -1,6 +1,6 @@
 # A run comes once, as its check suite, and the Worker answers what means nothing
 
-- Status: accepted
+- Status: accepted, amended by [0032](0032-workers-logs-keeps-every-line-of-a-failure-and-no-log-of-each-invocation.md): Workers Logs keeps every line logged, without sampling, and no invocation log of each request
 - Date: 2026-11-17
 
 ## Context

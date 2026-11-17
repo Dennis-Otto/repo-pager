@@ -15,6 +15,7 @@ The pager runs on the free plan of Cloudflare, whose limits count per day and re
 | Deletes of Workers KV | 1,000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
 | Lists of Workers KV | 1,000 | [Workers KV pricing](https://developers.cloudflare.com/kv/platform/pricing/) |
 | Events of Workers Logs | 200,000 | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) |
+| Ingestion of Observability, the events of Workers Logs and the traces together, from 2026-12-01 | 0.5 GB | [Observability pricing](https://developers.cloudflare.com/observability/pricing/) |
 
 Each event that GitHub delivers, each update of Telegram and each run of the schedule is one request of the Worker. Over that limit, Cloudflare answers every request with its error 1027 before the Worker runs, which the daily *Health* check of the control repository sees as a 429. Over any other limit, the operation fails inside the Worker: the pager then tells you once that day in Telegram, as far as it still can, and its answer to the health check carries the limit in its field `limit` (`src/limits.ts`). An event that failed comes again with the schedule once the limit reset, as [How it works](how-it-works.md#when-an-event-fails) describes.
 
@@ -53,10 +54,32 @@ On 2026-11-16, the ten repositories of the maintainer ran 11,746 runs of GitHub 
 | Requests of the Durable Object | about 160,000 | about 7,900 |
 | Reads of Workers KV | thousands, one per pass of a job on `main` | about 6,800 |
 | Lists of Workers KV | 96 | at most 4 while nothing is due |
-| Events of Workers Logs | about 320,000 | about 21,100 |
+| Events of Workers Logs | about 320,000 | none while nothing fails, about 23,600 should every delivery that means something fail |
 
 That is below a third of each limit. The busiest day of that week, 2026-11-13, ran 36,380 runs: about 41,000 requests of the Worker, still below half of each limit.
 
-Workers Logs keeps an event for each request of the Worker and of the Durable Object, and one for each line that either logs; the pager logs a line only when something fails. The logs stay complete (`observability` in `wrangler.jsonc`, without sampling): they are what tells why an event failed, and the busy day needs about 21,100 events of 200,000.
+Workers Logs keeps an event for each line that the Worker or the Durable Object logs, and by default one more for each request of either, its invocation log. The pager logs a line only when something fails, and `wrangler.jsonc` turns the invocation logs off, so a day on which nothing fails writes no event at all; with them, the busy day wrote about 21,100. Should every delivery that means something fail all day, in each of its three attempts, such as while GitHub is down, the day writes about 23,600 events, below a third of the 200,000, and at a generous 4 KB an event about 97 MB, below a third of the 0.5 GB that Cloudflare counts from 2026-12-01. On the busiest day of the week, every line would still be kept. `test/costs.test.ts` holds both.
 
 Most of those runs are runs of the blueprint's workflows that a `workflow_run` starts and that skip their jobs: they cost a request each and nothing more. A fleet with more runs than that can still use up the requests of the Worker, since each run is one delivery; a Workers Paid plan has no daily limit of requests.
+
+## Workers Logs
+
+Cloudflare counts each event of Workers Logs against a daily allowance, and once it is used up, it takes no more events until the allowance resets at 00:00 UTC: the very lines that tell why something failed would be lost. So the pager keeps only those, and all of them. The `observability` block of `wrangler.jsonc` says so, and `test/costs.test.ts` fails when it no longer does:
+
+| Setting | Value | What it does |
+| --- | --- | --- |
+| `enabled` | `true` | Workers Logs keeps the logs of the Worker. |
+| `head_sampling_rate` | `1` | Every request keeps its lines, none is left out by chance: a failure is never the one that a sample dropped. |
+| `logs.invocation_logs` | `false` | No event for each request of the Worker and each call of the Durable Object, only the lines that the pager logs. |
+| `traces.enabled` | `false` | No traces, whose spans count against the same allowance of Observability. |
+
+The settings are those of [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) and of the [configuration of Wrangler](https://developers.cloudflare.com/workers/wrangler/configuration/#observability). A lower `head_sampling_rate` would save events too, but it drops whole requests at random, failures with them, so the pager doesn't use it.
+
+### What you still see
+
+- **Each failure, with why,** in the Logs of the Worker on the dashboard of Cloudflare, for three days, seven from 2026-12-01: the line names the event of GitHub, the update of Telegram or the run of the schedule that failed, and the answer that made it fail, such as `A GitHub check_suite failed: GitHub answered 503: unavailable`. A delivery that failed for good becomes an entry of the alarm of the control repository, as [How it works](how-it-works.md#when-an-event-fails) describes.
+- **Each delivery of GitHub and the pager's answer to it,** with its status, in the recent deliveries on the *Advanced* page of your GitHub App, where you can also deliver one again.
+- **The requests, the errors and the time of the Worker and of the Durable Object,** in the metrics of the Worker on the dashboard, which count nothing against the allowance of Observability.
+- **Every request live,** with its invocation log, in `npx wrangler tail` or the live view of the Logs while you watch; Cloudflare keeps none of them.
+
+What you no longer see is a stored entry for each request that went well: for a request of the past that didn't fail, the recent deliveries of the app are the record.

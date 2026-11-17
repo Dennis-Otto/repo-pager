@@ -11,9 +11,14 @@
  *   and 5 million read, https://developers.cloudflare.com/durable-objects/platform/pricing/
  * - Workers KV: 100,000 reads, 1,000 writes, 1,000 deletes and 1,000 lists a day,
  *   https://developers.cloudflare.com/kv/platform/pricing/
- * - Workers Logs: 200,000 log events a day, one for each invocation of the Worker
- *   or of the Durable Object and one for each line logged,
+ * - Workers Logs: 200,000 log events a day, one for each line logged and, unless
+ *   wrangler.jsonc turns them off as the pager's does, one for each invocation of
+ *   the Worker or of the Durable Object,
  *   https://developers.cloudflare.com/workers/observability/logs/workers-logs/
+ * - Cloudflare Observability, from 2026-12-01: 0.5 GB of ingestion a day, the
+ *   uncompressed size of the events of Workers Logs and of the traces together;
+ *   when it is used up, Cloudflare takes no more of them until the reset,
+ *   https://developers.cloudflare.com/observability/pricing/
  *
  * Each resets at 00:00 UTC. Over the requests of the Worker, Cloudflare answers
  * every request with its error 1027 before the Worker runs, so the pager can't
@@ -34,8 +39,10 @@ export const LIMITS = {
   kvLists: 1_000,
   /** Rows of the storage of the Durable Object that a day may write. */
   rowsWritten: 100_000,
-  /** Events of Workers Logs, which keeps every invocation and every line logged. */
+  /** Events of Workers Logs: each line logged, and each invocation where it is on. */
   logs: 200_000,
+  /** Bytes of the events of Cloudflare Observability, 0.5 GB, from 2026-12-01. */
+  ingested: 500_000_000,
 } as const;
 
 /** A daily limit that the runtime refuses an operation over, as an error says it. */
