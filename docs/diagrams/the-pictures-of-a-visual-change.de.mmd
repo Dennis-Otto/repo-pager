@@ -5,28 +5,30 @@ config:
 ---
 flowchart TB
     accTitle: Die Bilder einer sichtbaren Änderung
-    accDescr: Der Maintainer oder ein Bot pusht auf einen Pull Request, der ändert, wie etwas aussieht, und sein Visual Check rendert die Bilder neu und behält jedes, das anders aussieht, in einem Artefakt, vorher und nachher. Ist der Check grün, fragt der Pager GitHub nach dem Pull Request, mit einem Token seiner App. Einer von jemand anderem, aus einem Fork oder einer, der zu einem neueren Head weiterzog, endet dort, ebenso ein Head, dessen Bilder schon kamen. Sonst liest der Pager das Artefakt mit demselben Token, über die kurzlebige Adresse seines Speichers. Sieht jedes Bild aus wie committet, kommt nichts. Sehen welche anders aus, geht ihre Nachricht in das Thema seines Releases oder einer eigenen Sache, und das Album der größten Änderungen folgt, so viele, wie in die zehn Fotos eines Albums passen, jede als ein Vergleich desselben Frames vorher und nachher mit den Änderungen rot umrahmt, oder, von einem älteren Check, mit ihren geänderten Pixeln in Rot, dann vorher und nachher. Der Merge oder das Ende des Pull Requests hakt das Thema ab.
+    accDescr: Der Maintainer oder ein Bot pusht auf einen Pull Request, der ändert, wie etwas aussieht, und sein Visual Check rendert die Bilder neu und behält jedes, das anders aussieht, in einem Artefakt, vorher und nachher, mit seinem Bericht, der von jedem sagt, ob das Auge seine Änderung sieht. Ist der Check grün, fragt der Pager GitHub nach dem Pull Request, mit einem Token seiner App. Einer von jemand anderem, aus einem Fork, einer, der zu einem neueren Head weiterzog, oder einer eines Bots, der sich selbst mergt, endet dort, ebenso ein Head, dessen Bilder schon kamen. Sonst liest der Pager das Artefakt mit demselben Token, über die kurzlebige Adresse seines Speichers. Sieht jedes Bild aus wie committet, kommt nichts. Sieht das Auge keine der Änderungen, kommt eine leise Zeile, mit der Zahl der Bilder, die abweichen, und um wie viel höchstens. Sieht es welche, geht ihre Nachricht in das Thema seines Releases oder einer eigenen Sache, und das Album der drei größten Änderungen, die das Auge sieht, folgt, jede als ein Vergleich desselben Frames vorher und nachher mit den Änderungen rot umrahmt, einmal pro Pull Request: Ein neuerer Head ändert die Nachricht an Ort und Stelle. Der Merge oder das Ende des Pull Requests hakt das Thema ab.
 
     push["`Der Maintainer oder ein Bot pusht auf einen Pull Request, der ändert, wie etwas aussieht`"]
-    check["`Der Visual Check rendert die Bilder und behält jedes, das anders aussieht, vorher und nachher`"]
+    check["`Der Visual Check rendert die Bilder, behält jedes, das anders aussieht, vorher und nachher, und sagt, ob das Auge seine Änderung sieht`"]
     ask["Der Pager fragt GitHub nach dem Pull Request, mit einem Token seiner App"]
-    stop["`Von jemand anderem, aus einem Fork, ein neuerer Head oder ein Head, dessen Bilder schon kamen: Nichts kommt`"]
+    stop["`Von jemand anderem, aus einem Fork, ein neuerer Head, von einem Bot, der sich selbst mergt, oder ein Head, dessen Bilder schon kamen: Nichts kommt`"]
     read["`Der Pager liest das Artefakt, über die kurzlebige Adresse seines Speichers`"]
     same["`Jedes Bild sieht aus wie committet: Nichts kommt`"]
-    topic["`**🖼** Ihre Nachricht im Thema seines Releases oder in einem eigenen`"]
-    album["`**📸** Das Album: die größten Änderungen, so viele, wie in zehn Fotos passen, jede als ein Vergleich eines Frames vorher und nachher, die Änderungen rot umrahmt`"]
+    unseen["`**🖼** Niemand sieht die Änderungen: eine leise Zeile, mit wie vielen und um wie viel höchstens`"]
+    topic["`**🖼** Ihre Nachricht im Thema seines Releases oder in einem eigenen, die ein neuerer Head an Ort und Stelle ändert`"]
+    album["`**📸** Ein Album pro Pull Request: die drei größten Änderungen, die das Auge sieht, jede als ein Vergleich eines Frames vorher und nachher, die Änderungen rot umrahmt`"]
     done["`**✅** Der Merge oder das Ende des Pull Requests hakt das Thema ab`"]
 
     push --> check
     check -- "grün" --> ask
     ask -- "nicht seine Bilder zu zeigen" --> stop
-    ask -- "vom Maintainer oder einem Bot, an seinem Head" --> read
+    ask -- "des Maintainers oder eines Bots, der auf ihn wartet, an seinem Head" --> read
     read -- "nichts geändert" --> same
-    read -- "Bilder sehen anders aus" --> topic --> album --> done
+    read -- "das Auge sieht keine der Änderungen" --> unseen --> done
+    read -- "das Auge sieht eine Änderung" --> topic --> album --> done
 
     classDef you fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
     classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
     classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
     class push you
     class check,ask,stop,read,same bot
-    class topic,album,done done
+    class unseen,topic,album,done done

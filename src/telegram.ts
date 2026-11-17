@@ -211,15 +211,17 @@ export class Telegram {
    * maintainer. Returns its id. A thread that Telegram doesn't find, such as one
    * that the maintainer deleted, or any in a chat where a rollout of Telegram
    * refuses them, takes the message in the main view instead, as a reply to the
-   * message replyTo when one is given, such as the message of its thing.
+   * message replyTo when one is given, such as the message of its thing. A silent
+   * one notifies nobody, such as one that says nothing to act on.
    */
   async send(
     text: string,
     keyboard: Keyboard,
     thread: Thread = null,
     replyTo: number | null = null,
+    silent = false,
   ): Promise<number> {
-    return (await this.post(text, keyboard, thread, replyTo)).message;
+    return (await this.post(text, keyboard, thread, replyTo, silent)).message;
   }
 
   /** Send a message as send() does, and say where it went: into its thread, or the main view. */
@@ -228,8 +230,9 @@ export class Telegram {
     keyboard: Keyboard,
     thread: Thread,
     replyTo: number | null,
+    silent = false,
   ): Promise<Sent> {
-    return this.deliver(this.message(text, keyboard), thread, replyTo);
+    return this.deliver(this.message(text, keyboard, silent), thread, replyTo);
   }
 
   /**
@@ -241,13 +244,12 @@ export class Telegram {
     text: string,
     keyboard: Keyboard,
     thread: number,
-    silent = false,
+    silent: boolean,
   ): Promise<number | null> {
     try {
       return await this.sendMessage({
-        ...this.message(text, keyboard),
+        ...this.message(text, keyboard, silent),
         message_thread_id: thread,
-        ...(silent ? { disable_notification: true } : {}),
       });
     } catch (error) {
       if (!threadNotFound(error)) {
@@ -258,13 +260,14 @@ export class Telegram {
     }
   }
 
-  private message(text: string, keyboard: Keyboard): object {
+  private message(text: string, keyboard: Keyboard, silent: boolean): object {
     return {
       chat_id: this.chatId,
       text,
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
       reply_markup: { inline_keyboard: keyboard },
+      ...(silent ? { disable_notification: true } : {}),
     };
   }
 

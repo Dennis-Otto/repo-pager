@@ -3,6 +3,7 @@
  * live in Cloudflare only, set with `npx wrangler secret put NAME` as
  * docs/setup.md lists them.
  */
+import { MAX_PICTURES } from "./pictures.ts";
 import { LANGUAGES, type Language, languageOf } from "./texts.ts";
 
 /** The secrets of the Worker, which `wrangler types` can't know. */
@@ -52,6 +53,8 @@ export interface Settings {
   language: Language;
   /** The time zone of the IANA in which the pager writes each moment, such as Europe/Berlin. */
   timeZone: string;
+  /** The pictures that the album of a visual change shows at most, from 0, which sends none, to MAX_PICTURES. */
+  pictures: number;
 }
 
 /** The secrets without which the pager can't serve anything. */
@@ -103,6 +106,19 @@ export function timeZoneOf(value: string | undefined): string | null {
 }
 
 /**
+ * The pictures of an album of PICTURES: a whole number from 0, which sends no
+ * album, to MAX_PICTURES, which it is when empty; null for anything else.
+ */
+export function picturesOf(value: string | undefined): number | null {
+  const text = value?.trim() ?? "";
+  if (text === "") {
+    return MAX_PICTURES;
+  }
+  const most = Number(text);
+  return /^\d+$/.test(text) && most <= MAX_PICTURES ? most : null;
+}
+
+/**
  * The settings from the environment of the Worker, or the names of what is missing
  * or wrong; never their values.
  */
@@ -136,11 +152,16 @@ export function readSettings(
   if (timeZone === null) {
     missing.push("TIME_ZONE (a time zone such as Europe/Berlin)");
   }
+  const pictures = picturesOf(env.PICTURES);
+  if (pictures === null) {
+    missing.push(`PICTURES (pictures of an album, from 0 to ${MAX_PICTURES})`);
+  }
   if (
     missing.length > 0 ||
     language === null ||
     owners === null ||
-    timeZone === null
+    timeZone === null ||
+    pictures === null
   ) {
     return { missing };
   }
@@ -161,6 +182,7 @@ export function readSettings(
       tokenExpires: expires,
       language,
       timeZone,
+      pictures,
     },
   };
 }

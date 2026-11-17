@@ -232,6 +232,7 @@ export async function settings(
     tokenExpires: null,
     language: "en",
     timeZone: "UTC",
+    pictures: 3,
     ...overrides,
   };
 }

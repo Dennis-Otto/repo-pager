@@ -61,7 +61,10 @@
     "LANGUAGE": "de",
     // The time zone of the IANA in which the pager writes each moment of a
     // message, such as "Europe/Berlin" or "America/New_York"; empty for UTC.
-    "TIME_ZONE": "Europe/Berlin"
+    "TIME_ZONE": "Europe/Berlin",
+    // How many pictures the album of a visual change shows at most, the largest
+    // changes that the eye sees: "0" for no album, only the message; empty for 3.
+    "PICTURES": "3"
   },
   "observability": {
     "enabled": true

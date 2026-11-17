@@ -216,13 +216,15 @@ async function intoThingTopic(
  * a new topic, which the thing keeps. So does a thing without a topic, such as one
  * whose topic Telegram refused: its next new message asks for a topic again, once
  * the pause of new topics is over. Only a thing from before topics, which has no
- * topic at all, stays in the main view. Returns the id of the message.
+ * topic at all, stays in the main view. A silent message notifies nobody, such as
+ * one that says nothing to act on. Returns the id of the message.
  */
 export async function sendThing(
   context: Context,
   item: Item,
   text: string,
   buttons: Keyboard,
+  silent: boolean,
 ): Promise<number> {
   const topic: Topic | null = item.topic ?? null;
   if (topic !== null) {
@@ -230,17 +232,18 @@ export async function sendThing(
       text,
       buttons,
       topic.thread,
+      silent,
     );
     if (message !== null) {
       return message;
     }
   } else if (item.topic === undefined && item.messageId !== null) {
     // A record from before topics has none at all, and stays in the main view.
-    return context.telegram.send(text, buttons);
+    return context.telegram.send(text, buttons, null, null, silent);
   }
   return (
-    (await intoThingTopic(context, item, text, buttons)) ??
-    context.telegram.send(text, buttons)
+    (await intoThingTopic(context, item, text, buttons, silent)) ??
+    context.telegram.send(text, buttons, null, null, silent)
   );
 }
 
@@ -297,13 +300,15 @@ export async function leaveMainView(
  * Telegram refused, whose message there is deleted once it moved; a chat without
  * topics, a pause of new topics, a topic that Telegram refuses, and a thing from
  * before topics keep the message below the thing's message in the main view.
- * Returns where the message went, for an album that follows it.
+ * A silent one notifies nobody; the thing's own message in a new topic does. Returns
+ * where the message went, for an album that follows it.
  */
 export async function postBelow(
   context: Context,
   item: Item,
   text: string,
   buttons: Keyboard = [],
+  silent = false,
 ): Promise<Sent> {
   const topic = item.topic ?? null;
   if (topic !== null) {
@@ -311,13 +316,14 @@ export async function postBelow(
       text,
       buttons,
       topic.thread,
+      silent,
     );
     if (message !== null) {
       return { message, thread: topic.thread };
     }
   } else if (item.topic === undefined) {
     // A record from before topics stays in the main view.
-    return context.telegram.post(text, buttons, null, item.messageId);
+    return context.telegram.post(text, buttons, null, item.messageId, silent);
   }
   const waiting = topic === null ? item.messageId : null;
   // The thing opens a new topic, as a new thing does, with its own message first.
@@ -326,7 +332,7 @@ export async function postBelow(
   const moved = await intoThingTopic(context, item, own, ownButtons);
   if (moved === null && topic === null) {
     // No topic to be had, and the thing's message is still there: below it.
-    return context.telegram.post(text, buttons, null, item.messageId);
+    return context.telegram.post(text, buttons, null, item.messageId, silent);
   }
   if (waiting !== null) {
     // Its message moved out of the main view.
@@ -340,6 +346,7 @@ export async function postBelow(
     buttons,
     item.topic?.thread ?? null,
     item.messageId,
+    silent,
   );
 }
 
