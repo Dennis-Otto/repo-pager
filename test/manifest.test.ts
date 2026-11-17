@@ -27,11 +27,11 @@ describe("the manifest of the GitHub App", () => {
   it("is private and asks only for what the pager uses", () => {
     expect(manifest.public).toBe(false);
     expect(manifest.default_permissions).toEqual({
-      // The events of workflow runs, for a release that fails, and 🔁 Rerun,
-      // which reads a run that failed and runs its failed jobs again.
+      // The run of a check suite that ended, the jobs of a run that failed, and
+      // 🔁 Rerun, which runs its failed jobs again.
       actions: "write",
-      // The events of checks: a required check that fails on main, and a release
-      // whose checks finished.
+      // The events of check suites: the end of each run of a workflow, and a
+      // release whose checks finished.
       checks: "read",
       // The merge of a release, and the events to the control repository.
       contents: "write",
@@ -63,6 +63,16 @@ describe("the manifest of the GitHub App", () => {
       );
       expect(outcome).not.toEqual({ ignored: `the event ${event}` });
     }
-    expect(manifest.default_events).toHaveLength(14);
+    expect(manifest.default_events).toHaveLength(12);
+  });
+
+  it("leaves out the events that come many times per run of GitHub Actions", () => {
+    // A run brings three events workflow_run and two events check_run per job,
+    // where its check suite brings one: the free plan of Cloudflare takes 100,000
+    // requests a day, and a fleet of repositories runs thousands of runs a day
+    // (docs/costs.md, test/costs.test.ts).
+    expect(manifest.default_events).toContain("check_suite");
+    expect(manifest.default_events).not.toContain("workflow_run");
+    expect(manifest.default_events).not.toContain("check_run");
   });
 });

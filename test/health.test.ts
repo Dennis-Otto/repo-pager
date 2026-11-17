@@ -70,6 +70,7 @@ describe("the health of the pager", () => {
       release: null,
       schedule: "2026-11-04T07:45:00.000Z",
       failure: null,
+      limit: null,
       telegram: {
         ok: true,
         webhook: true,
@@ -116,6 +117,7 @@ describe("the health of the pager", () => {
       release: null,
       schedule: null,
       failure: null,
+      limit: null,
       telegram: { ok: false, error: "Telegram getMe: Unauthorized" },
       github: {
         ok: false,

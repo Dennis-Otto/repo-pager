@@ -691,7 +691,7 @@ describe("an event that the pager failed to handle", () => {
     ) =>
       attempt(guid, minutes, status, {
         redelivery: again,
-        event: "check_suite",
+        event: "check_run",
         repository: 1,
       });
     const overtaken = listing(await world(), [
@@ -705,11 +705,11 @@ describe("an event that the pager failed to handle", () => {
     expect(redelivered(overtaken)).toEqual([]);
     const stale = suite("stale", 40, 500);
     // An event of no repository: nothing overtakes it.
-    const none = attempt("none", 55, 500, { event: "check_suite" });
+    const none = attempt("none", 55, 500, { event: "check_run" });
     const kept = listing(await world(), [
       [
         suite("older", 12, 200, true),
-        attempt("newest", 11, 200, { event: "check_suite" }),
+        attempt("newest", 11, 200, { event: "check_run" }),
         stale,
         suite("older", 50, 500),
         none,
@@ -717,6 +717,22 @@ describe("an event that the pager failed to handle", () => {
     ]);
     await failedEvents(kept.context);
     expect(redelivered(kept)).toEqual([none.id, stale.id]);
+  });
+
+  it("delivers a failed check suite again, whatever newer suite of its repository passed", async () => {
+    // The suite of CI failed on main while its run couldn't be read; the suite of
+    // another workflow of the same push passed a second later.
+    const failed = attempt("ci", 40, 500, {
+      event: "check_suite",
+      repository: 1,
+    });
+    const passed = attempt("scorecard", 39, 200, {
+      event: "check_suite",
+      repository: 1,
+    });
+    const w = listing(await world(), [[passed, failed]]);
+    await failedEvents(w.context);
+    expect(redelivered(w)).toEqual([failed.id]);
   });
 
   it("takes the newest attempt by its id, whatever the order of the list", async () => {
@@ -1026,7 +1042,7 @@ describe("a thing that fails in a run of the schedule", () => {
   it("goes on after a step that fails as a whole", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const w = await world({ tokenExpires: "2026-11-10" });
-    vi.spyOn(w.context.store, "waiting").mockRejectedValueOnce(
+    vi.spyOn(w.context.store, "overdue").mockRejectedValueOnce(
       new TypeError("KV GET failed"),
     );
     const reminder = await itemId(keys.reminder("claude-token:2026-11-10"));
@@ -1059,7 +1075,7 @@ describe("a thing that fails in a run of the schedule", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const broken = attempt("broken", 20, 500);
     const w = listing(await world(), [[broken]]);
-    vi.spyOn(w.context.store, "waiting").mockRejectedValueOnce(
+    vi.spyOn(w.context.store, "overdue").mockRejectedValueOnce(
       new TypeError("KV GET failed"),
     );
     vi.spyOn(w.context.local, "put").mockRejectedValueOnce(
@@ -1153,6 +1169,27 @@ describe("each signal applied twice", () => {
           head_branch: "main",
           run_attempt: 1,
         }),
+      )
+      .on(
+        "GET",
+        `/repos/${REPO}/actions/runs?check_suite_id=600&per_page=1`,
+        () =>
+          json({
+            workflow_runs: [
+              {
+                id: 60,
+                name: "Docs",
+                path: ".github/workflows/docs.yml",
+                event: "push",
+                status: "completed",
+                conclusion: "failure",
+                html_url: `https://github.com/${REPO}/actions/runs/60`,
+                head_branch: "main",
+                head_repository: { full_name: REPO },
+                run_attempt: 1,
+              },
+            ],
+          }),
       )
       .on("GET", `/repos/${REPO}/actions/runs/62`, () =>
         json({
@@ -1457,6 +1494,11 @@ describe("each signal applied twice", () => {
         },
       },
     ],
+    [
+      "suite: the end of a run that failed",
+      [],
+      { ...at, type: "suite", suite: 600, branch: "main" },
+    ],
     ["release-check", [], release],
     [
       "release-updated",
@@ -1519,6 +1561,7 @@ describe("each signal applied twice", () => {
       check: true,
       workflow: true,
       health: true,
+      suite: true,
       "release-check": true,
       "release-updated": true,
       "release-merged": true,

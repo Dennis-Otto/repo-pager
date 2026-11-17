@@ -23,9 +23,10 @@
  */
 import { remindAdvisories } from "./advisories.ts";
 import { canShow, failedEvents, SUBREQUESTS } from "./deliveries.ts";
+import { earlier, idle, noteListed } from "./due.ts";
 import { errorOf, FAILED, type Failure, RAN } from "./health.ts";
 import { type Context, show } from "./pager.ts";
-import { beforeJob, type Item } from "./store.ts";
+import { beforeJob, type Item, type Pending } from "./store.ts";
 import { REACTIONS } from "./telegram.ts";
 import { refreshReminder, remindTokens } from "./tokens.ts";
 import { retitle } from "./topics.ts";
@@ -67,14 +68,19 @@ export type Apart = (
 
 /**
  * Give up on the texts whose answer didn't come in time: their 👀 becomes 😢, and
- * their thread stays for a day, for an answer that comes late.
+ * their thread stays for a day, for an answer that comes late. Returns when the
+ * texts that are left next need the schedule, or null when none is left.
  */
-async function giveUp(context: Context): Promise<void> {
-  const late = await context.store.waiting(context.now() - ANSWER_WITHIN);
-  for (const message of late) {
-    await context.telegram.react(message, REACTIONS.failed);
-  }
-  await context.store.giveUp(late, context.now() - KEEP_LATE);
+async function giveUp(context: Context): Promise<number | null> {
+  const { waiting, kept } = await context.store.overdue(
+    context.now() - ANSWER_WITHIN,
+    context.now() - KEEP_LATE,
+    (message) => context.telegram.react(message, REACTIONS.failed),
+  );
+  return earlier(
+    waiting === null ? null : waiting + ANSWER_WITHIN,
+    kept === null ? null : kept + KEEP_LATE,
+  );
 }
 
 /**
@@ -233,10 +239,14 @@ async function renameAgain(
  * time.
  */
 export async function runSchedule(context: Context): Promise<string[]> {
-  const pending = await context.store.pending(
-    context.now(),
-    context.now() - ANSWER_WITHIN,
-  );
+  // While nothing is due, the run reads no record of Workers KV (src/due.ts).
+  const listed = context.now();
+  const quiet = await idle(context.local, listed);
+  const pending: Pending = quiet
+    ? { due: [], waiting: [], remind: [], rename: [], next: null }
+    : await context.store.pending(listed, listed - ANSWER_WITHIN);
+  // The texts that wait for their answer are due until the run looked at them.
+  let asked: number | null = listed;
   let failed = false;
   const apart: Apart = async (what, work) => {
     try {
@@ -278,7 +288,7 @@ export async function runSchedule(context: Context): Promise<string[]> {
     noAnswer(context, pending.waiting, each),
   );
   await step("the texts without an answer", async () => {
-    await giveUp(context);
+    asked = quiet ? null : await giveUp(context);
     return [];
   });
   // A report that came back from "Later" in this run is reminded of in the next.
@@ -300,6 +310,12 @@ export async function runSchedule(context: Context): Promise<string[]> {
     return [];
   });
   await step("the events that failed", () => failedEvents(context));
+  if (!quiet) {
+    await step("the note of what is due", async () => {
+      await noteListed(context.local, listed, earlier(pending.next, asked));
+      return [];
+    });
+  }
   if (!failed) {
     await context.local.put(RAN, context.now());
   }

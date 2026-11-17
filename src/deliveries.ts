@@ -104,11 +104,14 @@ export interface Seen {
  * does a vulnerability report: one that comes again is shown once, and one that
  * stayed away would be a report missed. Nor does an alert of secret scanning,
  * whose events come in bursts, one per alert, and a leak missed is worse: a late
- * copy of one that was resolved since is known by its time (src/pager.ts).
+ * copy of one that was resolved since is known by its time (src/pager.ts). Nor
+ * does a check suite: a newer one of the same repository is mostly a suite of
+ * another run, which the Worker answers at once, and the pager reads the current
+ * state of the run or the pull request of a suite when it comes, so a late copy
+ * brings back nothing old.
  */
 export const SUPERSEDED = new Set([
   "check_run",
-  "check_suite",
   "code_scanning_alert",
   "discussion",
   "issues",

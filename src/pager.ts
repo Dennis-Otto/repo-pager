@@ -1754,9 +1754,32 @@ async function health(
     : `the run of the issue: ${outcome.ignored}`;
 }
 
+/**
+ * A check suite of GitHub Actions that ended, where its run can mean something:
+ * the pager reads the run, which says what it means, as its own event said when
+ * the pager read that. A call that fails leaves the event failed, so the schedule
+ * has GitHub deliver it again (src/deliveries.ts).
+ */
+async function suiteEnded(
+  context: Context,
+  signal: Extract<Signal, { type: "suite" }>,
+): Promise<string> {
+  const { repo, installation } = signal;
+  const run = await context.github.runOfSuite(installation, repo, signal.suite);
+  if (run === null) {
+    return "a check suite without its run";
+  }
+  const outcome = finishedRun(run, { repo, installation }, signal.branch);
+  return "signal" in outcome
+    ? apply(context, outcome.signal)
+    : `the run of the check suite: ${outcome.ignored}`;
+}
+
 /** What a signal does to the things of the maintainer; returns what happened. */
 export async function apply(context: Context, signal: Signal): Promise<string> {
   switch (signal.type) {
+    case "suite":
+      return suiteEnded(context, signal);
     case "contribution": {
       const id = await itemId(keys.contribution(signal.repo, signal.number));
       if ((await context.store.get(id)) !== null) {

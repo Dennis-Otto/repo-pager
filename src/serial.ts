@@ -1,16 +1,23 @@
 /**
- * The one Durable Object of the pager, which runs every request and every run of
- * the schedule. The state lives in Workers KV, which has no compare-and-swap and
- * shows a write in other places of Cloudflare's network only after a while: two
- * failing checks at the same moment, or a button pressed twice, would each read
- * the old state and overwrite the other. Here, in one place, the changes run one
- * after another, and each reads what the one before wrote. Its own storage keeps
- * the pager's notes on itself, such as the time of the schedule's last run.
+ * The one Durable Object of the pager, which runs every request that changes
+ * something and every run of the schedule. The state lives in Workers KV, which
+ * has no compare-and-swap and shows a write in other places of Cloudflare's
+ * network only after a while: two failing checks at the same moment, or a button
+ * pressed twice, would each read the old state and overwrite the other. Here, in
+ * one place, the changes run one after another, and each reads what the one
+ * before wrote. Its own storage keeps the pager's notes on itself, such as the
+ * time of the schedule's last run.
  */
 import { DurableObject } from "cloudflare:workers";
 
 import { makeContext } from "./context.ts";
-import { type Route, schedule, serve } from "./routes.ts";
+import {
+  type Delivered,
+  deliver,
+  type Route,
+  schedule,
+  serve,
+} from "./routes.ts";
 import type { PagerEnv, Settings } from "./settings.ts";
 
 export class Serial extends DurableObject<PagerEnv> {
@@ -42,13 +49,18 @@ export class Serial extends DurableObject<PagerEnv> {
     );
   }
 
-  /** A request of Telegram, GitHub or the control repository. */
+  /** A request of Telegram or of the control repository. */
   handle(
     settings: Settings,
-    route: Route,
+    route: Exclude<Route, "/github">,
     request: Request,
   ): Promise<Response> {
     return serve(this.context(settings), route, request);
+  }
+
+  /** A delivery of the GitHub App that means something, as the Worker read it. */
+  deliver(settings: Settings, delivered: Delivered): Promise<Response> {
+    return deliver(this.context(settings), delivered);
   }
 
   /** A run of the schedule. */

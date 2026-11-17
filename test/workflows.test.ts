@@ -762,3 +762,94 @@ describe("the message and the topic of a workflow", () => {
     expect(told.text).toContain("Docs fails on main");
   });
 });
+
+describe("the check suite of a run that ended", () => {
+  const suite: Signal = { ...at, type: "suite", suite: 600, branch: "main" };
+  const lookup = `${API}?check_suite_id=600&per_page=1`;
+
+  it("reads its run and does what the run means, a failure as its own event did", async () => {
+    const w = await world();
+    w.net
+      .on("GET", lookup, () =>
+        json({
+          workflow_runs: [
+            {
+              id: 60,
+              name: "Docs",
+              path: PATH,
+              event: "push",
+              status: "completed",
+              conclusion: "failure",
+              html_url: `${RUNS}/60`,
+              head_branch: "main",
+              head_repository: { full_name: REPO },
+              run_attempt: 1,
+            },
+          ],
+        }),
+      )
+      .on("GET", /\/actions\/runs\/60\/attempts\/1\/jobs/, () =>
+        json({ jobs: [] }),
+      );
+    expect(await apply(w.context, suite)).toBe("workflow waiting");
+    const known = (await w.context.store.get(
+      await itemId(keys.workflow(REPO, PATH)),
+    )) as Workflow;
+    expect(known).toMatchObject({ state: "waiting", run: 60, attempt: 1 });
+  });
+
+  it("pages a verification of a release published by hand that failed, and its pass ends it", async () => {
+    // Publishing the draft of a release runs its verification on the tag.
+    const verify = (id: number, conclusion: string) => () =>
+      json({
+        workflow_runs: [
+          {
+            id,
+            name: "Verify release",
+            path: ".github/workflows/verify-release.yml",
+            event: "release",
+            status: "completed",
+            conclusion,
+            html_url: `${RUNS}/${id}`,
+            head_branch: "v1.2.0",
+            head_repository: { full_name: REPO },
+            run_attempt: 1,
+          },
+        ],
+      });
+    const w = await world();
+    w.net.on("GET", lookup, verify(70, "failure"));
+    expect(await apply(w.context, suite)).toBe("alarm opened");
+    // The release that it verified is no draft any more.
+    w.net
+      .on("GET", `/repos/${REPO}/releases?per_page=10`, () =>
+        json([{ draft: false }]),
+      )
+      .on("GET", lookup, verify(71, "success"));
+    expect(await apply(w.context, suite)).toBe("alarm closed");
+  });
+
+  it("says why a run means nothing, and a suite without a run", async () => {
+    const w = await world();
+    w.net.on("GET", lookup, () =>
+      json({
+        workflow_runs: [
+          {
+            id: 61,
+            path: PATH,
+            event: "pull_request",
+            conclusion: "success",
+            head_branch: "feat/blue",
+          },
+        ],
+      }),
+    );
+    expect(await apply(w.context, suite)).toBe(
+      "the run of the check suite: a workflow run of a pull request",
+    );
+    w.net.on("GET", lookup, () => json({ workflow_runs: [] }));
+    expect(await apply(w.context, suite)).toBe("a check suite without its run");
+    w.net.on("GET", lookup, () => json({}));
+    expect(await apply(w.context, suite)).toBe("a check suite without its run");
+  });
+});

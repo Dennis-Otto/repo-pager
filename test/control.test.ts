@@ -992,10 +992,20 @@ describe("the thread of an answer", () => {
 
   it("forgets only the texts given up on a day ago and keeps those that wait", async () => {
     const w = await world();
+    const given: number[] = [];
+    const giving = async (message: number) => {
+      given.push(message);
+    };
     await w.context.store.ask(500, START, 77);
-    await w.context.store.giveUp([500], START);
+    expect(await w.context.store.overdue(START + 1, START, giving)).toEqual({
+      waiting: null,
+      kept: START,
+    });
     await w.context.store.ask(501, START + KEEP_LATE, 78);
-    await w.context.store.giveUp([], START + 1);
+    expect(await w.context.store.overdue(START + 1, START + 1, giving)).toEqual(
+      { waiting: START + KEEP_LATE, kept: null },
+    );
+    expect(given).toEqual([500]);
     expect(await w.context.store.thread(500)).toBeNull();
     expect(await w.context.store.thread(501)).toBe(78);
     expect(await w.context.store.waiting(START + KEEP_LATE + 1)).toEqual([501]);
@@ -1278,6 +1288,8 @@ describe("the schedule", () => {
       waiting: ["i444444444444444"],
       remind: [],
       rename: [],
+      // The job went before START, which is due an hour after it.
+      next: START - 2,
     });
     expect((await w.context.store.pending(START, START - 1)).waiting).toEqual(
       [],
