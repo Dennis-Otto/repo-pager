@@ -54,6 +54,7 @@ import {
   type Contribution,
   type Discussion,
   type Entry,
+  type Former,
   type IssueComment,
   type Item,
   isClosed,
@@ -1495,6 +1496,11 @@ async function releaseCheck(
     const translation: Translation | undefined = [same, replaced]
       .map((release) => release?.translation)
       .find((kept) => translates(kept, key, context.t.language));
+    const formers = formerTopics(
+      context,
+      known,
+      same === null && replaced === null,
+    );
     const item: Release = {
       ...base(
         await itemId(keys.release(signal.repo)),
@@ -1511,6 +1517,7 @@ async function releaseCheck(
       ...(translation === undefined ? {} : { translation }),
       // The message of the pictures of the pull request stays, for its next head.
       ...(known?.pictures === undefined ? {} : { pictures: known.pictures }),
+      ...(formers.length === 0 ? {} : { formers }),
       // The same release, ready again after an update, keeps its message; a new
       // version keeps the topic of the one that it replaces, renamed.
       messageId: same?.messageId ?? replaced?.messageId ?? null,
@@ -1522,6 +1529,29 @@ async function releaseCheck(
     outcomes.push(`#${number} ready`);
   }
   return outcomes.join("; ");
+}
+
+/**
+ * The topics of the earlier versions of a release that its new record keeps until
+ * the schedule deleted them (clearTopics() of src/schedule.ts): those that the
+ * record before kept, and, when a new version follows one that is done, such as
+ * published, the topic of that one, which no record would know any more. An
+ * instance that keeps its done topics keeps them without the record.
+ */
+function formerTopics(
+  context: Context,
+  known: Release | null,
+  follows: boolean,
+): Former[] {
+  if (known === null) {
+    return [];
+  }
+  const formers = [...(known.formers ?? [])];
+  const thread = known.topic?.thread;
+  if (follows && thread !== undefined && context.store.clearAfter !== null) {
+    formers.push({ thread, doneAt: known.doneAt ?? context.now() });
+  }
+  return formers;
 }
 
 async function releaseState(

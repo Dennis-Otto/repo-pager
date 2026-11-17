@@ -62,6 +62,25 @@ Workers Logs behält ein Ereignis für jede Zeile, die der Worker oder das Durab
 
 Die meisten dieser Läufe sind Läufe der Workflows des Blueprints, die ein `workflow_run` startet und die ihre Jobs überspringen: Sie kosten je eine Anfrage und nichts weiter. Eine Flotte mit noch mehr Läufen kann die Anfragen an den Worker trotzdem aufbrauchen, denn jeder Lauf ist eine Zustellung; der Plan Workers Paid hat kein Tageslimit für Anfragen.
 
+## Der Durchgang durch die alten Themen
+
+Die Themen, die vor 0.11.0 erledigt waren, gehen einmal, mit einem Durchgang des Zeitplans durch die Verknüpfungen der Themen ([So arbeitet er](how-it-works.md#ein-thema-pro-sache)). Er kostet nur, was vom Tag übrig ist, als letzter Schritt jedes Laufs, in Grenzen, die `test/costs.test.ts` zusammen mit dem vollen Tag oben unter einem Drittel jedes Limits hält:
+
+| Jeder Lauf, höchstens | Ein Tag, höchstens | Mit dem vollen Tag |
+| --- | --- | --- |
+| 1 Auflistung von 20 Verknüpfungen | 96 Auflistungen | 100 von 1.000 Auflistungen |
+| 40 Lesevorgänge, die Sache jeder Verknüpfung und ihr Eintrag | 3.840 Lesevorgänge | 10.615 von 100.000 Lesevorgängen |
+| 3 Schreibvorgänge, einer für jede Sache, deren Thema ging | 288 Schreibvorgänge | 306 von 1.000 Schreibvorgängen |
+| 10 Aufrufe von `deleteForumTopic` bei Telegram | 960 Löschungen | kein Limit von Cloudflare |
+| 1 Zeile im Speicher des Durable Objects, wo er steht | 96 Zeilen | 288 von 100.000 Zeilen |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-sweep-of-the-old-topics.de.dark.svg">
+  <img src="images/diagrams/the-sweep-of-the-old-topics.de.svg" alt="Der Durchgang durch die alten Themen: Auf einer Instanz, die DONE_TOPIC_HOURS setzt, notiert der erste Lauf des Zeitplans der neuen Version, wann er lief, und der Durchgang beginnt die Stunden der Instanz später. Jeder Lauf des Zeitplans nimmt als letzten Schritt eine Seite von 20 Verknüpfungen von Themen, höchstens zehn Löschungen und drei Schreibvorgänge. Es zählt eine Verknüpfung, die vor dem ersten Lauf erledigt war; jede andere bleibt. Der Eintrag ihrer Sache entscheidet. Eine erledigte Sache, die das Thema nennt und keine Markierung hat, verliert ihr Thema wie nach einem Druck auf Thema löschen, mit einem Schreiben. Eine Sache, die weg ist oder ein anderes Thema nennt, etwa ein Release, das weiterging, verliert nichts, und ihr altes Thema geht ohne Schreiben. Eine offene Sache und eine Sache mit ihrer Markierung bleiben. Eine Ablehnung von Telegram beendet den Lauf, und nach einem Tag geht der Durchgang an diesem Thema vorbei. Sobald die Liste durch ist, oder 30 Tage nach dem ersten Lauf, endet der Durchgang und kostet nichts mehr.">
+</picture>
+
+Er kostet keine eigene Anfrage und kein Löschen. Ein Thema einer Sache, die weg ist, oder eines Releases, das weiterging, kostet kein Schreiben, also entscheiden die Schreibvorgänge, wie schnell er geht: 288 Sachen am Tag, etwa 2.900 in zehn Tagen, und die Verknüpfungen der Themen, 1.920 am Tag. Die Verknüpfungen, die er sucht, verfallen 30 Tage, nachdem ihr Thema erledigt war, ab dem 2026-12-04 für die ältesten der Instanz des Maintainers, darum musste der Durchgang vorher kommen; sobald die Liste durch ist, oder 30 Tage nach dem ersten Lauf der Version, endet er, und ein Lauf kostet wieder, was er ohne ihn kostete, keinen Vorgang von Workers KV, solange nichts fällig ist.
+
 ## Workers Logs
 
 Cloudflare zählt jedes Ereignis von Workers Logs gegen ein Tageskontingent, und sobald es aufgebraucht ist, nimmt es keine Ereignisse mehr an, bis das Kontingent um 00:00 UTC zurückgesetzt wird: Gerade die Zeilen, die sagen, warum etwas gescheitert ist, gingen verloren. Darum behält der Pager nur diese, und alle davon. Der Block `observability` in `wrangler.jsonc` sagt es so, und `test/costs.test.ts` schlägt fehl, wenn er es nicht mehr tut:

@@ -1,0 +1,41 @@
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TB
+    accTitle: The sweep of the old topics
+    accDescr: On an instance that sets DONE_TOPIC_HOURS, the first run of the schedule of the new version notes when it ran, and the sweep starts the hours of the instance later. Each run of the schedule takes, as its last step, one page of 20 links of topics, at most ten deletions and three writes. A link that was done before the first run counts; any other stays. The record of its thing decides. A done thing that names the topic and has no done mark loses its topic as after a press of Delete topic, with one write. A thing that is gone, or names another topic, such as a release that moved on, loses nothing, and its old topic goes without a write. An open thing and a thing with its done mark stay. A refusal of Telegram ends the run, and after a day the sweep goes past that topic. Once the list is through, or 30 days after the first run, the sweep ends and costs nothing more.
+
+    first["`The first run of the new version notes when it ran; the sweep starts **DONE_TOPIC_HOURS** later`"]
+    page["`Each run, last: **one page** of 20 links, at most 10 deletions and 3 writes`"]
+    old{"`Was the link done **before the first run**?`"}
+    record{"`What does the record of its thing say?`"}
+    clear["`Done, names this topic, no mark: the topic goes, as after 🗑 Delete topic, **one write**`"]
+    orphan["`Gone, or names another topic, such as a release that moved on: the topic goes, **no write**`"]
+    stay["`It stays: an open thing, a thing with its mark, which the schedule deletes itself, a link that wasn't done`"]
+    refused["`Telegram refuses: the run ends, the next tries again, and after a day the topic stays`"]
+    through["`The list is through, or 30 days are over: the sweep **ends** and costs nothing more`"]
+
+    first --> page
+    page --> old
+    old -- "no" --> stay
+    old -- "yes" --> record
+    record -- "done in it" --> clear
+    record -- "moved on" --> orphan
+    record -- "open, or marked" --> stay
+    clear -- "refused" --> refused
+    orphan -- "refused" --> refused
+    clear --> page
+    orphan --> page
+    stay --> page
+    page -- "no link left" --> through
+
+    classDef you fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
+    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
+    classDef warn fill:#dc26262e,stroke:#dc2626,stroke-width:2px
+    class first,page,old,record bot
+    class clear,orphan,through done
+    class stay you
+    class refused warn

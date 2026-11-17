@@ -36,5 +36,6 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0028](0028-an-ignored-thing-comes-back-with-a-button.md) | An ignored thing comes back with a button | accepted |
 | [0029](0029-a-visual-change-sends-one-message-per-pull-request-with-the-few-changes-that-the-eye-sees.md) | A visual change sends one message per pull request, with the few changes that the eye sees | accepted |
 | [0030](0030-a-run-comes-once-as-its-check-suite-and-the-worker-answers-what-means-nothing.md) | A run comes once, as its check suite, and the Worker answers what means nothing | accepted, amended by [0032](0032-workers-logs-keeps-every-line-of-a-failure-and-no-log-of-each-invocation.md) |
-| [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md) | A done topic goes with a button, and after the hours of the instance | accepted |
+| [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md) | A done topic goes with a button, and after the hours of the instance | accepted, amended by [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md) |
 | [0032](0032-workers-logs-keeps-every-line-of-a-failure-and-no-log-of-each-invocation.md) | Workers Logs keeps every line of a failure, and no log of each invocation | accepted |
+| [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md) | The topics done before a version go once, by their links | accepted |

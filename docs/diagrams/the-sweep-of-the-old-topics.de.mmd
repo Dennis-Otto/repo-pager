@@ -1,0 +1,41 @@
+---
+config:
+  flowchart:
+    wrappingWidth: 400
+---
+flowchart TB
+    accTitle: Der Durchgang durch die alten Themen
+    accDescr: Auf einer Instanz, die DONE_TOPIC_HOURS setzt, notiert der erste Lauf des Zeitplans der neuen Version, wann er lief, und der Durchgang beginnt die Stunden der Instanz später. Jeder Lauf des Zeitplans nimmt als letzten Schritt eine Seite von 20 Verknüpfungen von Themen, höchstens zehn Löschungen und drei Schreibvorgänge. Es zählt eine Verknüpfung, die vor dem ersten Lauf erledigt war; jede andere bleibt. Der Eintrag ihrer Sache entscheidet. Eine erledigte Sache, die das Thema nennt und keine Markierung hat, verliert ihr Thema wie nach einem Druck auf Thema löschen, mit einem Schreiben. Eine Sache, die weg ist oder ein anderes Thema nennt, etwa ein Release, das weiterging, verliert nichts, und ihr altes Thema geht ohne Schreiben. Eine offene Sache und eine Sache mit ihrer Markierung bleiben. Eine Ablehnung von Telegram beendet den Lauf, und nach einem Tag geht der Durchgang an diesem Thema vorbei. Sobald die Liste durch ist, oder 30 Tage nach dem ersten Lauf, endet der Durchgang und kostet nichts mehr.
+
+    first["`Der erste Lauf der neuen Version notiert, wann er lief; der Durchgang beginnt **DONE_TOPIC_HOURS** später`"]
+    page["`Jeder Lauf, zuletzt: **eine Seite** von 20 Verknüpfungen, höchstens 10 Löschungen und 3 Schreibvorgänge`"]
+    old{"`War die Verknüpfung **vor dem ersten Lauf** erledigt?`"}
+    record{"`Was sagt der Eintrag ihrer Sache?`"}
+    clear["`Erledigt, nennt dieses Thema, keine Markierung: Das Thema geht, wie nach 🗑 Thema löschen, **ein Schreiben**`"]
+    orphan["`Weg, oder nennt ein anderes Thema, etwa ein Release, das weiterging: Das Thema geht, **kein Schreiben**`"]
+    stay["`Es bleibt: eine offene Sache, eine Sache mit ihrer Markierung, die der Zeitplan selbst löscht, eine Verknüpfung, die nicht erledigt war`"]
+    refused["`Telegram lehnt ab: Der Lauf endet, der nächste versucht es wieder, und nach einem Tag bleibt das Thema`"]
+    through["`Die Liste ist durch, oder 30 Tage sind um: Der Durchgang **endet** und kostet nichts mehr`"]
+
+    first --> page
+    page --> old
+    old -- "nein" --> stay
+    old -- "ja" --> record
+    record -- "darin erledigt" --> clear
+    record -- "weitergegangen" --> orphan
+    record -- "offen oder markiert" --> stay
+    clear -- "abgelehnt" --> refused
+    orphan -- "abgelehnt" --> refused
+    clear --> page
+    orphan --> page
+    stay --> page
+    page -- "keine Verknüpfung mehr" --> through
+
+    classDef you fill:#f59e0b2e,stroke:#f59e0b,stroke-width:2px
+    classDef bot fill:#526cfe2e,stroke:#526cfe,stroke-width:2px
+    classDef done fill:#16a34a2e,stroke:#16a34a,stroke-width:2px
+    classDef warn fill:#dc26262e,stroke:#dc2626,stroke-width:2px
+    class first,page,old,record bot
+    class clear,orphan,through done
+    class stay you
+    class refused warn
