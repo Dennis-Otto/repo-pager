@@ -10,9 +10,10 @@
  * whose rename Telegram refused gets its name (src/topics.ts), the topic of a
  * thing that is done goes with its messages once the hours of DONE_TOPIC_HOURS are
  * over (clearTopics()), a release of the
- * pager that didn't go live is told once (src/version.ts), and an
+ * pager that didn't go live is told once (src/version.ts), an
  * event of GitHub that the pager failed to handle comes again
- * (src/deliveries.ts).
+ * (src/deliveries.ts), and the topics that were done before this version go,
+ * once, a few with each run (src/sweep.ts).
  *
  * Each step, and each thing of a step, goes apart from the others: one that
  * Telegram or GitHub refuses, or that a network that breaks stops, goes to the
@@ -28,7 +29,14 @@ import { canShow, failedEvents, SUBREQUESTS } from "./deliveries.ts";
 import { earlier, idle, noteListed } from "./due.ts";
 import { errorOf, FAILED, type Failure, RAN } from "./health.ts";
 import { type Context, show } from "./pager.ts";
-import { beforeJob, type Item, isDone, type Pending } from "./store.ts";
+import {
+  beforeJob,
+  type Former,
+  type Item,
+  isDone,
+  type Pending,
+} from "./store.ts";
+import { sweepTopics } from "./sweep.ts";
 import { REACTIONS } from "./telegram.ts";
 import { refreshReminder, remindTokens } from "./tokens.ts";
 import { clearTopic, retitle } from "./topics.ts";
@@ -253,7 +261,9 @@ async function renameAgain(
  * writes one, so that this costs no request of its own. A thing that opened again
  * or lost its topic since keeps its message and loses only its done mark, with one
  * write, so the list stops naming it. A topic that Telegram refuses to
- * delete is tried again with the next run, for CLEAR_FOR, and then stays.
+ * delete is tried again with the next run, for CLEAR_FOR, and then stays. The
+ * topics that the earlier versions of a release handed over to its record go the
+ * same way, before its own.
  */
 async function clearTopics(
   context: Context,
@@ -268,33 +278,73 @@ async function clearTopics(
     await apart(`thing ${id}`, async () => {
       // The list may lag behind a write: only the record says whether it is due.
       const item = await context.store.get(id);
-      const since = item?.doneAt;
-      if (
-        item === null ||
-        since === undefined ||
-        since + after > context.now()
-      ) {
+      if (item === null) {
         return;
       }
-      if (!isDone(item) || (item.topic ?? null) === null) {
-        // A done mark that no longer holds goes, or every run would read it again.
-        delete item.doneAt;
-        await context.store.put(item);
-        return;
+      let changed = await clearFormers(context, item, after);
+      const since = item.doneAt;
+      if (since !== undefined && since + after <= context.now()) {
+        if (!isDone(item) || (item.topic ?? null) === null) {
+          // A done mark that no longer holds goes, or every run would read it again.
+          delete item.doneAt;
+          changed = true;
+        } else if (await clearTopic(context, item)) {
+          // Kept by clearTopic(), with what clearFormers() changed.
+          return;
+        } else if (since + after <= context.now() - CLEAR_FOR) {
+          console.warn(
+            `Telegram refused to delete topic ${item.topic?.thread} for a day; it stays`,
+          );
+          delete item.doneAt;
+          changed = true;
+        }
       }
-      if (await clearTopic(context, item)) {
-        return;
-      }
-      if (since + after <= context.now() - CLEAR_FOR) {
-        console.warn(
-          `Telegram refused to delete topic ${item.topic?.thread} for a day; it stays`,
-        );
-        delete item.doneAt;
+      if (changed) {
         await context.store.put(item);
       }
     });
   }
   return [];
+}
+
+/**
+ * Delete the topics that the earlier versions of a release handed over to its
+ * record whose hours are over, each with one call to Telegram while the run has
+ * calls left, and forget each that went, or that Telegram refused for CLEAR_FOR
+ * after it was due. Returns whether the record changed, which the caller writes.
+ */
+async function clearFormers(
+  context: Context,
+  item: Item,
+  after: number,
+): Promise<boolean> {
+  if (item.kind !== "release" || item.formers === undefined) {
+    return false;
+  }
+  const kept: Former[] = [];
+  for (const former of item.formers) {
+    const due = former.doneAt + after;
+    if (due > context.now() || context.subrequests() >= SUBREQUESTS) {
+      kept.push(former);
+    } else if (await context.telegram.removeTopic(former.thread)) {
+      // Gone.
+    } else if (due <= context.now() - CLEAR_FOR) {
+      console.warn(
+        `Telegram refused to delete topic ${former.thread} for a day; it stays`,
+      );
+    } else {
+      kept.push(former);
+    }
+  }
+  if (kept.length === item.formers.length) {
+    return false;
+  }
+  if (kept.length === 0) {
+    delete item.formers;
+  } else {
+    item.formers = kept;
+  }
+  return true;
 }
 
 /**
@@ -380,6 +430,12 @@ export async function runSchedule(context: Context): Promise<string[]> {
     return [];
   });
   await step("the events that failed", () => failedEvents(context));
+  // Last, with the calls that every other step left, and short: the run holds the
+  // queue of the Durable Object.
+  await step("the topics done before this version", async () => {
+    await sweepTopics(context);
+    return [];
+  });
   if (!quiet) {
     await step("the note of what is due", async () => {
       await noteListed(context.local, listed, earlier(pending.next, asked));

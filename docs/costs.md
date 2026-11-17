@@ -42,7 +42,7 @@ Without *Check run*, the pager no longer sees a failing check of another app tha
 
 A run of the schedule, every 15 minutes, is a request of the Worker and of the Durable Object and writes two rows of its storage, its time and what it read of the deliveries. It reads nothing of Workers KV while nothing is due: a note in the storage of the Durable Object keeps when the next thing is due, a thing put aside with ⏰ Later or a text that waits for its answer, and the run lists the records only then, and every six hours all the same.
 
-The topic of a thing that is done goes in such a run, once the hours of `DONE_TOPIC_HOURS` are over, and costs no request of its own: the write that makes the thing done notes when, in the metadata of its record, so the note of what is due wakes the list only when a topic is due, and each deleted topic costs one read and one write of Workers KV and one call of Telegram, ten topics per run at most. A press of 🗑 Delete topic is a request of the Worker and of the Durable Object, like any press, with the same read and write.
+The topic of a thing that is done goes in such a run, once the hours of `DONE_TOPIC_HOURS` are over, and costs no request of its own: the write that makes the thing done notes when, in the metadata of its record, so the note of what is due wakes the list only when a topic is due, and each deleted topic costs one read and one write of Workers KV and one call of Telegram, ten things per run at most; a topic of a version before a release costs one more call and shares the write of the release. A press of 🗑 Delete topic is a request of the Worker and of the Durable Object, like any press, with the same read and write.
 
 ## A busy day
 
@@ -61,6 +61,25 @@ That is below a third of each limit. The busiest day of that week, 2026-11-13, r
 Workers Logs keeps an event for each line that the Worker or the Durable Object logs, and by default one more for each request of either, its invocation log. The pager logs a line only when something fails, and `wrangler.jsonc` turns the invocation logs off, so a day on which nothing fails writes no event at all; with them, the busy day wrote about 21,100. Should every delivery that means something fail all day, in each of its three attempts, such as while GitHub is down, the day writes about 23,600 events, below a third of the 200,000, and at a generous 4 KB an event about 97 MB, below a third of the 0.5 GB that Cloudflare counts from 2026-12-01. On the busiest day of the week, every line would still be kept. `test/costs.test.ts` holds both.
 
 Most of those runs are runs of the blueprint's workflows that a `workflow_run` starts and that skip their jobs: they cost a request each and nothing more. A fleet with more runs than that can still use up the requests of the Worker, since each run is one delivery; a Workers Paid plan has no daily limit of requests.
+
+## The sweep of the old topics
+
+The topics that were done before 0.11.0 go once, by a sweep of the schedule through the links of the topics ([How it works](how-it-works.md#a-topic-per-thing)). It costs only what is left of the day, as the last step of each run, within bounds that `test/costs.test.ts` holds below a third of each limit together with the busy day above:
+
+| Each run, at most | A day, at most | With the busy day |
+| --- | --- | --- |
+| 1 list of 20 links | 96 lists | 100 of 1,000 lists |
+| 40 reads, the thing of each link and its record | 3,840 reads | 10,615 of 100,000 reads |
+| 3 writes, one for each thing whose topic went | 288 writes | 306 of 1,000 writes |
+| 10 calls of Telegram's `deleteForumTopic` | 960 deletions | no limit of Cloudflare |
+| 1 row of the storage of the Durable Object, where it stands | 96 rows | 288 of 100,000 rows |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-sweep-of-the-old-topics.dark.svg">
+  <img src="images/diagrams/the-sweep-of-the-old-topics.svg" alt="The sweep of the old topics: On an instance that sets DONE_TOPIC_HOURS, the first run of the schedule of the new version notes when it ran, and the sweep starts the hours of the instance later. Each run of the schedule takes, as its last step, one page of 20 links of topics, at most ten deletions and three writes. A link that was done before the first run counts; any other stays. The record of its thing decides. A done thing that names the topic and has no done mark loses its topic as after a press of Delete topic, with one write. A thing that is gone, or names another topic, such as a release that moved on, loses nothing, and its old topic goes without a write. An open thing and a thing with its done mark stay. A refusal of Telegram ends the run, and after a day the sweep goes past that topic. Once the list is through, or 30 days after the first run, the sweep ends and costs nothing more.">
+</picture>
+
+It costs no request and no delete of its own. A topic of a thing that is gone, or of a release that moved on, costs no write, so the writes decide how fast it goes: 288 things a day, about 2,900 in ten days, and the links of the topics, 1,920 a day. The links that it looks for expire 30 days after their topic was done, from 2026-12-04 on for the oldest of the maintainer's instance, so the sweep had to come before; once the list is through, or 30 days after the first run of the version, it ends, and a run costs again what it did without it, no operation of Workers KV while nothing is due.
 
 ## Workers Logs
 

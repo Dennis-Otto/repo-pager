@@ -283,6 +283,50 @@ export interface Release extends Base {
    * `pictures`: read only, so that such a head doesn't go a second time.
    */
   album?: string;
+  /**
+   * The topics of the versions before it that were done and still wait for the
+   * hours of DONE_TOPIC_HOURS, such as that of 1.2.0, published, when the release
+   * pull request of 1.3.0 came within them: the record of the repository is the
+   * only one that knows them, so it hands them over to the schedule, which deletes
+   * each once its hours are over (clearTopics() of src/schedule.ts). None on an
+   * instance that keeps its done topics, and none in a record from before it.
+   */
+  formers?: Former[];
+}
+
+/** The topic of an earlier version of a release, done and due to go. */
+export interface Former {
+  /** The topic. */
+  thread: number;
+  /** When its version was done in it, in milliseconds since 1970. */
+  doneAt: number;
+}
+
+/**
+ * When the first topic that a thing knows was done: its own, or one that an
+ * earlier version of a release handed over; undefined when none waits.
+ */
+export function firstDone(item: Item): number | undefined {
+  const times = [
+    ...(item.doneAt === undefined ? [] : [item.doneAt]),
+    ...(item.kind === "release"
+      ? (item.formers ?? []).map((former) => former.doneAt)
+      : []),
+  ];
+  return times.length === 0 ? undefined : Math.min(...times);
+}
+
+/** A link of a topic to its thing, as a list of Workers KV names it. */
+export interface TopicLink {
+  /** Its key, by which the list is sorted. */
+  key: string;
+  /** The topic. */
+  thread: number;
+  /**
+   * When the link expires, in milliseconds since 1970: 30 days after the thing was
+   * done in its topic (link() of Store). Null for a link of a thing that was open.
+   */
+  expires: number | null;
 }
 
 /** The message of the pictures of a release pull request, and the album below it. */
@@ -556,7 +600,8 @@ export const keys = {
  */
 export const SECRET_MEMORY = 4 * 60 * 60;
 
-const MONTH = 30 * 24 * 60 * 60;
+/** How long a link of a done topic lives, and a closed record after its last write, in seconds. */
+export const MONTH = 30 * 24 * 60 * 60;
 
 /** The key of the pause of new topics, one for the chat. */
 const TOPIC_PAUSE_KEY = "pause:topics";
@@ -707,15 +752,17 @@ export class Store {
     if (item.renameRefused !== undefined) {
       marks.rename = item.renameRefused;
     }
-    // Only a thing that is done in its topic keeps doneAt (noteDone() of src/topics.ts).
-    if (item.doneAt !== undefined) {
-      marks.done = item.doneAt;
+    // Only a thing that is done in its topic keeps doneAt (noteDone() of src/topics.ts),
+    // and a release the topics of its versions before that wait to go.
+    const done = firstDone(item);
+    if (done !== undefined) {
+      marks.done = done;
     }
     if (Object.keys(marks).length > 0) {
       options.metadata = marks;
     }
     await this.kv.put(`item:${item.id}`, JSON.stringify(item), options);
-    const { done, ...timed } = marks;
+    const { done: _done, ...timed } = marks;
     const times = Object.values(timed) as number[];
     if (done !== undefined && this.clearAfter !== null) {
       times.push(done + this.clearAfter);
@@ -949,9 +996,38 @@ export class Store {
    * release of a repository that moved on to its next version.
    */
   async byTopic(thread: number): Promise<Item | null> {
-    const id = await this.kv.get(`topic:${thread}`);
+    const id = await this.linked(thread);
     const item = id === null ? null : await this.get(id);
     return item?.topic?.thread === thread ? item : null;
+  }
+
+  /** The id of the thing that a topic was linked to last, or null for none, with one read. */
+  async linked(thread: number): Promise<string | null> {
+    return this.kv.get(`topic:${thread}`);
+  }
+
+  /**
+   * One page of the links of the topics, in the order of their keys, with one list
+   * and no read: from the start, or from where the cursor of the page before ends.
+   * Returns the cursor of the next page, or null when this one was the last.
+   */
+  async topicLinks(
+    cursor: string | null,
+    limit: number,
+  ): Promise<{ links: TopicLink[]; cursor: string | null }> {
+    const listed = await this.kv.list({
+      prefix: "topic:",
+      limit,
+      ...(cursor === null ? {} : { cursor }),
+    });
+    return {
+      links: listed.keys.map((key) => ({
+        key: key.name,
+        thread: Number(key.name.slice("topic:".length)),
+        expires: key.expiration === undefined ? null : key.expiration * 1000,
+      })),
+      cursor: listed.list_complete ? null : listed.cursor,
+    };
   }
 
   /** The pause of new topics after Telegram refused one, or null when there is none. */

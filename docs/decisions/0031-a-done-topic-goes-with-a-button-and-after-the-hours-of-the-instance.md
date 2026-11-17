@@ -1,6 +1,6 @@
 # A done topic goes with a button, and after the hours of the instance
 
-- Status: accepted, amends [0005](0005-one-topic-per-thing-kept-when-done.md)
+- Status: accepted, amends [0005](0005-one-topic-per-thing-kept-when-done.md), amended by [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md)
 - Date: 2026-11-17
 
 ## Context
@@ -27,4 +27,4 @@ The maintainer's own instance sets 24 hours: a topic of a thing that is done sta
 
 ## Consequences
 
-The list of topics shows what is open and what was done within the hours of the instance. The history of a done thing is on GitHub, which every message links to; the pager keeps the record of a closed thing for 30 days as before, so a thing that opens again within them comes back with its state. Each deleted topic costs one read and one write of Workers KV and one call to Telegram, in a run of the schedule that lists anyway or that its note wakes, and no request of its own, as `test/costs.test.ts` checks. Topics that were done before this version have no mark: their buttons come with their next change, and the maintainer deletes the rest by hand once.
+The list of topics shows what is open and what was done within the hours of the instance. The history of a done thing is on GitHub, which every message links to; the pager keeps the record of a closed thing for 30 days as before, so a thing that opens again within them comes back with its state. Each deleted topic costs one read and one write of Workers KV and one call to Telegram, in a run of the schedule that lists anyway or that its note wakes, and no request of its own, as `test/costs.test.ts` checks. Topics that were done before this version have no mark: their buttons come with their next change, and [decision 0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md) deletes the rest once, by their links, where the maintainer was to delete them by hand.

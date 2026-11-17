@@ -34,6 +34,15 @@ import {
   type PagerEnv,
   type Settings,
 } from "../src/settings.ts";
+import type { Item } from "../src/store.ts";
+import {
+  LINK_LIFE,
+  SWEEP,
+  SWEEP_DELETES,
+  SWEEP_PAGE,
+  SWEEP_WRITES,
+  type Sweep,
+} from "../src/sweep.ts";
 import wrangler from "../wrangler.jsonc?raw";
 import {
   appKey,
@@ -521,6 +530,17 @@ describe("the cost of each kind of delivery", () => {
 
 describe("the schedule", () => {
   const QUARTER = 15 * 60_000;
+  // Once the sweep of the topics done before this version is through: while it
+  // goes, its runs cost a list of their own, which "a busy day" prices
+  // (src/sweep.ts).
+  beforeEach(async () => {
+    await local.put<Sweep>(SWEEP, {
+      first: START,
+      start: START,
+      deleted: 0,
+      ended: START,
+    });
+  });
   /** The KV operations of a run, none while nothing is due. */
   const kv = (each: Cost) =>
     each.kvReads + each.kvWrites + each.kvDeletes + each.kvLists;
@@ -765,6 +785,123 @@ describe("a busy day of a fleet", () => {
     const total = await day(BUSIEST);
     for (const limit of Object.keys(FREE) as (keyof Cost)[]) {
       expect(total[limit], limit).toBeLessThan(FREE[limit] / 2);
+    }
+  });
+
+  const DAY_MS = 24 * 60 * 60_000;
+
+  /**
+   * What a day of the sweep of the topics done before this version adds, each of
+   * its 96 runs at every bound of src/sweep.ts at once: a page of links, each of
+   * which takes two reads, the most topics that a run deletes, and the most
+   * records that it writes. The day itself is the same, so the sweep adds only
+   * what its run costs beyond a run without it.
+   */
+  async function sweepDay(): Promise<Cost> {
+    const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
+    const settings = { ...(await settingsOf()), doneTopicHours: hours };
+    // Workers KV keeps the time of expiry of a link by the clock of the machine.
+    clock.now = Date.now();
+    const first = clock.now;
+    // The first run notes when the sweep starts.
+    await scheduled();
+    const { store } = makeContext(
+      settings,
+      env as PagerEnv,
+      net.fetch,
+      () => clock.now,
+      async () => {},
+      undefined,
+      local,
+    );
+    // A link that was done a day before the first run, and lives 29 days more.
+    const expiration = Math.floor((first - DAY_MS + LINK_LIFE) / 1000);
+    const thing = (thread: number, state: string): Item =>
+      ({
+        id: `i0000000000${thread}`,
+        repo: HERE,
+        installation: 9,
+        messageId: 7,
+        note: null,
+        kind: "alarm",
+        state,
+        entries: [],
+        snoozedUntil: null,
+        topic: { thread, name: "🚨 demo" },
+      }) as Item;
+    const kept = SWEEP_PAGE - SWEEP_DELETES;
+    for (let index = 0; index < SWEEP_PAGE + 5; index += 1) {
+      const thread = 1000 + index;
+      const id = `i0000000000${thread}`;
+      if (index >= SWEEP_PAGE) {
+        // Links of open things, without a time of expiry, on the next page.
+        await env.PAGER.put(`topic:${thread}`, id);
+        continue;
+      }
+      await env.PAGER.put(`topic:${thread}`, id, { expiration });
+      if (index < kept) {
+        // Things that opened again: two reads each, and they stay.
+        await store.put(thing(thread, "open"));
+      } else if (index < kept + SWEEP_WRITES) {
+        // Things done before this version: their topic goes, with a write.
+        await store.put(thing(thread, "recovered"));
+      }
+      // The rest are gone: their topic goes without a write.
+    }
+    // The run before the start lists, as every six hours.
+    clock.now = first + hours * 60 * 60_000 - 15 * 60_000;
+    await scheduled();
+    clock.now += 15 * 60_000;
+    const run = await scheduled();
+    expect(
+      net.calls.filter((call) => call.url.endsWith("/deleteForumTopic")),
+    ).toHaveLength(SWEEP_DELETES);
+    expect((await local.get<Sweep>(SWEEP))?.deleted).toBe(SWEEP_DELETES);
+    // Once it is through, a run costs what it did without it.
+    await local.put<Sweep>(SWEEP, {
+      ...((await local.get<Sweep>(SWEEP)) as Sweep),
+      ended: clock.now,
+    });
+    clock.now += 15 * 60_000;
+    const after = await scheduled();
+    expect(after).toEqual({
+      ...nothing(),
+      requests: 1,
+      objects: 1,
+      rowsWritten: 2,
+    });
+    const extra = nothing();
+    for (const limit of Object.keys(extra) as (keyof Cost)[]) {
+      extra[limit] = (run[limit] - after[limit]) * DAY.schedules;
+    }
+    return extra;
+  }
+
+  it("stays below a third of each daily limit with a day of the sweep of the old topics", async () => {
+    const extra = await sweepDay();
+    // The numbers of docs/costs.md: a list, 40 reads, 3 writes and a row a run.
+    expect(extra).toEqual({
+      ...nothing(),
+      kvReads: 2 * SWEEP_PAGE * DAY.schedules,
+      kvWrites: SWEEP_WRITES * DAY.schedules,
+      kvLists: DAY.schedules,
+      rowsWritten: DAY.schedules,
+    });
+    clock.now = START;
+    local = new Memory();
+    const total = await day();
+    for (const limit of Object.keys(FREE) as (keyof Cost)[]) {
+      expect(total[limit] + extra[limit], limit).toBeLessThan(FREE[limit] / 3);
+    }
+  });
+
+  it("stays below the limits on the busiest day of the week with a day of the sweep", async () => {
+    const extra = await sweepDay();
+    clock.now = START;
+    local = new Memory();
+    const total = await day(BUSIEST);
+    for (const limit of Object.keys(FREE) as (keyof Cost)[]) {
+      expect(total[limit] + extra[limit], limit).toBeLessThan(FREE[limit] / 2);
     }
   });
 

@@ -42,7 +42,7 @@ Ohne *Check run* sieht der Pager einen scheiternden Check einer anderen App als 
 
 Ein Lauf des Zeitplans, alle 15 Minuten, ist eine Anfrage an den Worker und an das Durable Object und schreibt zwei Zeilen seines Speichers, seine Zeit und was er von den Zustellungen gelesen hat. Er liest nichts von Workers KV, solange nichts fällig ist: Eine Notiz im Speicher des Durable Objects hält fest, wann das Nächste fällig ist, eine Sache, die ⏰ Später zurückgestellt hat, oder ein Text, der auf seine Antwort wartet, und der Lauf listet die Einträge nur dann auf, und alle sechs Stunden trotzdem.
 
-Das Thema einer Sache, die erledigt ist, geht in einem solchen Lauf, sobald die Stunden von `DONE_TOPIC_HOURS` um sind, und kostet keine eigene Anfrage: Das Schreiben, das die Sache erledigt, notiert in den Metadaten ihres Eintrags, wann, sodass die Notiz, was fällig ist, die Auflistung nur weckt, wenn ein Thema fällig ist, und jedes gelöschte Thema kostet ein Lesen und ein Schreiben von Workers KV und einen Aufruf von Telegram, höchstens zehn Themen pro Lauf. Ein Druck auf 🗑 Thema löschen ist eine Anfrage an den Worker und an das Durable Object, wie jeder Druck, mit demselben Lesen und Schreiben.
+Das Thema einer Sache, die erledigt ist, geht in einem solchen Lauf, sobald die Stunden von `DONE_TOPIC_HOURS` um sind, und kostet keine eigene Anfrage: Das Schreiben, das die Sache erledigt, notiert in den Metadaten ihres Eintrags, wann, sodass die Notiz, was fällig ist, die Auflistung nur weckt, wenn ein Thema fällig ist, und jedes gelöschte Thema kostet ein Lesen und ein Schreiben von Workers KV und einen Aufruf von Telegram, höchstens zehn Sachen pro Lauf; ein Thema einer Version vor einem Release kostet einen Aufruf mehr und teilt das Schreiben des Release. Ein Druck auf 🗑 Thema löschen ist eine Anfrage an den Worker und an das Durable Object, wie jeder Druck, mit demselben Lesen und Schreiben.
 
 ## Ein voller Tag
 
@@ -61,6 +61,25 @@ Das ist unter einem Drittel jedes Limits. Der vollste Tag dieser Woche, 2026-11-
 Workers Logs behält ein Ereignis für jede Zeile, die der Worker oder das Durable Object schreibt, und von sich aus eines mehr für jede Anfrage an einen von beiden, ihr Aufruf-Log. Der Pager schreibt nur eine Zeile, wenn etwas scheitert, und `wrangler.jsonc` schaltet die Aufruf-Logs ab, sodass ein Tag, an dem nichts scheitert, gar kein Ereignis schreibt; mit ihnen schrieb der volle Tag etwa 21.100. Sollte jede Zustellung, die etwas bedeutet, den ganzen Tag scheitern, in jedem ihrer drei Versuche, etwa solange GitHub ausfällt, schreibt der Tag etwa 23.600 Ereignisse, unter einem Drittel der 200.000, und bei großzügigen 4 KB pro Ereignis etwa 97 MB, unter einem Drittel der 0,5 GB, die Cloudflare ab 2026-12-01 zählt. Auch am vollsten Tag der Woche bliebe jede Zeile erhalten. `test/costs.test.ts` hält beides fest.
 
 Die meisten dieser Läufe sind Läufe der Workflows des Blueprints, die ein `workflow_run` startet und die ihre Jobs überspringen: Sie kosten je eine Anfrage und nichts weiter. Eine Flotte mit noch mehr Läufen kann die Anfragen an den Worker trotzdem aufbrauchen, denn jeder Lauf ist eine Zustellung; der Plan Workers Paid hat kein Tageslimit für Anfragen.
+
+## Der Durchgang durch die alten Themen
+
+Die Themen, die vor 0.11.0 erledigt waren, gehen einmal, mit einem Durchgang des Zeitplans durch die Verknüpfungen der Themen ([So arbeitet er](how-it-works.md#ein-thema-pro-sache)). Er kostet nur, was vom Tag übrig ist, als letzter Schritt jedes Laufs, in Grenzen, die `test/costs.test.ts` zusammen mit dem vollen Tag oben unter einem Drittel jedes Limits hält:
+
+| Jeder Lauf, höchstens | Ein Tag, höchstens | Mit dem vollen Tag |
+| --- | --- | --- |
+| 1 Auflistung von 20 Verknüpfungen | 96 Auflistungen | 100 von 1.000 Auflistungen |
+| 40 Lesevorgänge, die Sache jeder Verknüpfung und ihr Eintrag | 3.840 Lesevorgänge | 10.615 von 100.000 Lesevorgängen |
+| 3 Schreibvorgänge, einer für jede Sache, deren Thema ging | 288 Schreibvorgänge | 306 von 1.000 Schreibvorgängen |
+| 10 Aufrufe von `deleteForumTopic` bei Telegram | 960 Löschungen | kein Limit von Cloudflare |
+| 1 Zeile im Speicher des Durable Objects, wo er steht | 96 Zeilen | 288 von 100.000 Zeilen |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-sweep-of-the-old-topics.de.dark.svg">
+  <img src="images/diagrams/the-sweep-of-the-old-topics.de.svg" alt="Der Durchgang durch die alten Themen: Auf einer Instanz, die DONE_TOPIC_HOURS setzt, notiert der erste Lauf des Zeitplans der neuen Version, wann er lief, und der Durchgang beginnt die Stunden der Instanz später. Jeder Lauf des Zeitplans nimmt als letzten Schritt eine Seite von 20 Verknüpfungen von Themen, höchstens zehn Löschungen und drei Schreibvorgänge. Es zählt eine Verknüpfung, die vor dem ersten Lauf erledigt war; jede andere bleibt. Der Eintrag ihrer Sache entscheidet. Eine erledigte Sache, die das Thema nennt und keine Markierung hat, verliert ihr Thema wie nach einem Druck auf Thema löschen, mit einem Schreiben. Eine Sache, die weg ist oder ein anderes Thema nennt, etwa ein Release, das weiterging, verliert nichts, und ihr altes Thema geht ohne Schreiben. Eine offene Sache und eine Sache mit ihrer Markierung bleiben. Eine Ablehnung von Telegram beendet den Lauf, und nach einem Tag geht der Durchgang an diesem Thema vorbei. Sobald die Liste durch ist, oder 30 Tage nach dem ersten Lauf, endet der Durchgang und kostet nichts mehr.">
+</picture>
+
+Er kostet keine eigene Anfrage und kein Löschen. Ein Thema einer Sache, die weg ist, oder eines Releases, das weiterging, kostet kein Schreiben, also entscheiden die Schreibvorgänge, wie schnell er geht: 288 Sachen am Tag, etwa 2.900 in zehn Tagen, und die Verknüpfungen der Themen, 1.920 am Tag. Die Verknüpfungen, die er sucht, verfallen 30 Tage, nachdem ihr Thema erledigt war, ab dem 2026-12-04 für die ältesten der Instanz des Maintainers, darum musste der Durchgang vorher kommen; sobald die Liste durch ist, oder 30 Tage nach dem ersten Lauf der Version, endet er, und ein Lauf kostet wieder, was er ohne ihn kostete, keinen Vorgang von Workers KV, solange nichts fällig ist.
 
 ## Workers Logs
 
