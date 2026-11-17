@@ -9,10 +9,9 @@ requests when there is none.
 
 ## [0.12.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.1...v0.12.0) (2026-11-17)
 
-
 ### Features
 
-* **telegram:** the topics done before 0.11.0 go once, by themselves ([#255](https://github.com/Dennis-Otto/repo-pager/issues/255)) ([6ef1329](https://github.com/Dennis-Otto/repo-pager/commit/6ef1329763d2db2a5b1bf97071ca6d1cd190824d))
+- The topics that were done before 0.11.0 now go by themselves, on an instance that sets `DONE_TOPIC_HOURS`: once, starting the hours of the instance after the first run of this version, the pager goes through the topics it still knows and deletes each that is done, with every message of it, also the topic of an older version of a release, which no button reached. Nothing needs to be done by hand. A pile of a few thousand topics is through within days, a few topics every 15 minutes, far below the daily limits of Cloudflare's free plan; the sweep never deletes a topic that still needs you, never touches the main view and sends no message, and once it is through it costs nothing more. An instance without `DONE_TOPIC_HOURS` keeps every done topic, as before. The topic of a published release whose next version comes within the hours of the instance now goes after them as well, where it stayed for good.
 
 ## [0.11.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.0...v0.11.1) (2026-11-17)
 
