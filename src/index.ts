@@ -70,6 +70,17 @@ async function deliver(
   }
 }
 
+/**
+ * A request that failed outside a handler that logs its own failures. Workers Logs
+ * keeps no invocation log (wrangler.jsonc turns it off), so this line is the only
+ * trace of an exception that would otherwise go uncaught; the 500 is what the
+ * runtime would answer anyway, so that the sender delivers it again.
+ */
+function failed(what: string, error: unknown): Response {
+  console.error(`${what} failed:`, describe(error));
+  return new Response("failed", { status: 500 });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -90,22 +101,37 @@ export default {
       return new Response("Service Unavailable", { status: 503 });
     }
     if (url.pathname === "/github") {
-      const screened = await screen(settings, request);
+      let screened: Response | Delivered;
+      try {
+        screened = await screen(settings, request);
+      } catch (error) {
+        return failed("A GitHub delivery", error);
+      }
       return screened instanceof Response
         ? screened
         : deliver(env, settings, screened);
     }
-    return serial(env).handle(
-      settings,
-      url.pathname as Exclude<Route, "/github">,
-      request,
-    );
+    try {
+      return await serial(env).handle(
+        settings,
+        url.pathname as Exclude<Route, "/github">,
+        request,
+      );
+    } catch (error) {
+      return failed(`A request to ${url.pathname}`, error);
+    }
   },
 
   async scheduled(_controller, env, executionContext) {
     const settings = configured(env);
     if (settings !== null) {
-      executionContext.waitUntil(serial(env).schedule(settings));
+      executionContext.waitUntil(
+        serial(env)
+          .schedule(settings)
+          .catch((error: unknown) => {
+            console.error("The schedule failed:", describe(error));
+          }),
+      );
     }
   },
 } satisfies ExportedHandler<PagerEnv>;

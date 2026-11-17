@@ -501,6 +501,55 @@ describe("the schedule", () => {
   });
 });
 
+describe("a request that fails outside a handler", () => {
+  // Workers Logs keeps no invocation log, so each of these leaves exactly one line.
+  async function refusing(error: unknown): Promise<PagerEnv> {
+    return {
+      ...(await secrets()),
+      SERIAL: {
+        getByName: () => ({
+          handle: () => Promise.reject(error),
+          schedule: () => Promise.reject(error),
+        }),
+      },
+    } as unknown as PagerEnv;
+  }
+
+  const limit = new Error(
+    "Exceeded allowed volume of requests in Durable Objects free tier.",
+  );
+
+  it("logs a Durable Object that refuses Telegram or the control repository, and answers 500", async () => {
+    const environment = await refusing(limit);
+    expect((await call(post("/telegram", "{}"), environment)).status).toBe(500);
+    expect((await call(post("/control", "{}"), environment)).status).toBe(500);
+    expect(errors).toEqual([
+      "A request to /telegram failed: the daily limit of the free plan of Cloudflare: objects",
+      "A request to /control failed: the daily limit of the free plan of Cloudflare: objects",
+    ]);
+  });
+
+  it("logs a delivery of GitHub that can't be read, and answers 500", async () => {
+    const request = post("/github", "{}");
+    await request.text();
+    expect((await call(request)).status).toBe(500);
+    expect(errors).toEqual(["A GitHub delivery failed: TypeError"]);
+  });
+
+  it("logs a schedule that the Durable Object refuses", async () => {
+    const running = createExecutionContext();
+    await worker.scheduled(
+      createScheduledController(),
+      await refusing(limit),
+      running,
+    );
+    await waitOnExecutionContext(running);
+    expect(errors).toEqual([
+      "The schedule failed: the daily limit of the free plan of Cloudflare: objects",
+    ]);
+  });
+});
+
 describe("the context", () => {
   it("runs a change at once outside the Durable Object", async () => {
     const context = makeContext(await settings(), env as PagerEnv);
