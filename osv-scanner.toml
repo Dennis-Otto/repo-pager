@@ -6,8 +6,8 @@
 # advisory comes as soon as it is out, and its entry goes with that update.
 
 # picomatch 4.0.7, the newest version, has no fix for this denial of service by a
-# crafted glob. Only the tests bring it: Vite, through Vitest, and tinyglobby, through
-# fdir, from vitest, @cloudflare/vitest-plugin and @vitest/coverage-istanbul
+# crafted glob. Only the tests bring it: Vitest and Vite directly, and tinyglobby (with
+# fdir as a peer), from vitest, @cloudflare/vitest-plugin and @vitest/coverage-istanbul
 # (`npm explain picomatch`). Wrangler doesn't use it, and the Worker that Wrangler
 # bundles from src/ doesn't hold it (`npm run build`), so nothing of it runs at
 # Cloudflare. The globs that it matches are those of vitest.config.ts and
