@@ -32,7 +32,7 @@
 import { SUBREQUESTS } from "./deliveries.ts";
 import type { Context } from "./pager.ts";
 import { CLEAR_FOR } from "./schedule.ts";
-import { isDone, type TopicLink } from "./store.ts";
+import { isDone, MONTH, type TopicLink } from "./store.ts";
 import { clearTopic } from "./topics.ts";
 
 /** The key of the sweep in the storage of the Durable Object. */
@@ -51,7 +51,7 @@ export const SWEEP_WRITES = 3;
  * How long a link of a done topic lives, in milliseconds (link() of Store): 30 days
  * after the first run, no link from before it is left.
  */
-export const LINK_LIFE = 30 * 24 * 60 * 60 * 1000;
+export const LINK_LIFE = MONTH * 1000;
 
 /** Where the sweep stands, in the storage of the Durable Object. */
 export interface Sweep {
@@ -170,6 +170,10 @@ async function sweepOne(
   const own = item?.topic?.thread === link.thread ? item : null;
   if (own !== null && (!isDone(own) || own.doneAt !== undefined)) {
     // Open, or done with its mark, which the schedule deletes itself.
+    return true;
+  }
+  if (own === null && item?.cleared === true && item.topic === null) {
+    // Its thing was cleared since, which deleted this topic with it.
     return true;
   }
   if (

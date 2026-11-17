@@ -795,6 +795,19 @@ describe("the sweep of the topics done before this version", () => {
     expect(await sweep(w)).toMatchObject({ deleted: 1 });
   });
 
+  it("leaves the link of a thing that was cleared since, whose topic went with it, without a call", async () => {
+    const w = await swept();
+    await thing(w, 901, "recovered", {
+      topic: null,
+      messageId: null,
+      cleared: true,
+    });
+    await toStart(w);
+    expect(deleted(w)).toEqual([]);
+    expect(await sweep(w)).toMatchObject({ deleted: 0 });
+    expect((await sweep(w))?.ended).toBeDefined();
+  });
+
   it("tries a refused topic again for a day, then goes past it, and the log says so once", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const w = await swept();

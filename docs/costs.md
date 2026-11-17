@@ -42,7 +42,7 @@ Without *Check run*, the pager no longer sees a failing check of another app tha
 
 A run of the schedule, every 15 minutes, is a request of the Worker and of the Durable Object and writes two rows of its storage, its time and what it read of the deliveries. It reads nothing of Workers KV while nothing is due: a note in the storage of the Durable Object keeps when the next thing is due, a thing put aside with ⏰ Later or a text that waits for its answer, and the run lists the records only then, and every six hours all the same.
 
-The topic of a thing that is done goes in such a run, once the hours of `DONE_TOPIC_HOURS` are over, and costs no request of its own: the write that makes the thing done notes when, in the metadata of its record, so the note of what is due wakes the list only when a topic is due, and each deleted topic costs one read and one write of Workers KV and one call of Telegram, ten topics per run at most. A press of 🗑 Delete topic is a request of the Worker and of the Durable Object, like any press, with the same read and write.
+The topic of a thing that is done goes in such a run, once the hours of `DONE_TOPIC_HOURS` are over, and costs no request of its own: the write that makes the thing done notes when, in the metadata of its record, so the note of what is due wakes the list only when a topic is due, and each deleted topic costs one read and one write of Workers KV and one call of Telegram, ten things per run at most; a topic of a version before a release costs one more call and shares the write of the release. A press of 🗑 Delete topic is a request of the Worker and of the Durable Object, like any press, with the same read and write.
 
 ## A busy day
 

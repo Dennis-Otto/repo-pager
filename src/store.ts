@@ -600,7 +600,8 @@ export const keys = {
  */
 export const SECRET_MEMORY = 4 * 60 * 60;
 
-const MONTH = 30 * 24 * 60 * 60;
+/** How long a link of a done topic lives, and a closed record after its last write, in seconds. */
+export const MONTH = 30 * 24 * 60 * 60;
 
 /** The key of the pause of new topics, one for the chat. */
 const TOPIC_PAUSE_KEY = "pause:topics";
