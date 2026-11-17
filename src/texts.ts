@@ -273,6 +273,8 @@ const en = {
   "chat.helpKeep": "A done topic stays until you delete it.",
   "chat.helpClear":
     "A done topic goes by itself, with its messages, {hours} hours after the thing was done.",
+  "chat.helpClearHour":
+    "A done topic goes by itself, with its messages, an hour after the thing was done.",
   "chat.helpClearNow":
     "A done topic goes by itself, with its messages, within 15 minutes after the thing was done.",
   "chat.noControl":
@@ -438,7 +440,10 @@ export interface Texts {
    * Europe/Berlin 08.11.2026 um 12:20 GMT+1.
    */
   time(at: number): string;
-  /** A whole number, such as 48213, as the language writes it: 48,213 or 48.213. */
+  /**
+   * A number, such as 48213 or 0.5, as the language writes it: 48,213 or 48.213,
+   * 0.5 or 0,5.
+   */
   number(value: number): string;
   /** A share between 0 and 1, such as 0.0231, as a percentage: 2.31 % or 2,31 %. */
   percent(share: number): string;
@@ -714,6 +719,8 @@ const de: Catalog = {
   "chat.helpKeep": "Ein erledigtes Thema bleibt, bis du es löschst.",
   "chat.helpClear":
     "Ein erledigtes Thema geht von selbst, mit seinen Nachrichten, {hours} Stunden nachdem die Sache erledigt war.",
+  "chat.helpClearHour":
+    "Ein erledigtes Thema geht von selbst, mit seinen Nachrichten, eine Stunde nachdem die Sache erledigt war.",
   "chat.helpClearNow":
     "Ein erledigtes Thema geht von selbst, mit seinen Nachrichten, binnen 15 Minuten, nachdem die Sache erledigt war.",
   "chat.noControl":
@@ -935,7 +942,9 @@ export function texts(language: Language, timeZone = "UTC"): Texts {
     date: DATES[language],
     time: (at: number) => time(at, language, zone),
     number: (value: number) =>
-      String(value).replace(/\B(?=(\d{3})+(?!\d))/g, THOUSANDS[language]),
+      String(value)
+        .replace(".", DECIMALS[language])
+        .replace(/\B(?<![.,]\d*)(?=(\d{3})+(?!\d))/g, THOUSANDS[language]),
     percent: (share: number) => percent(share, DECIMALS[language]),
     language,
   }) as Texts;

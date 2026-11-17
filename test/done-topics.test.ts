@@ -440,6 +440,28 @@ describe("DONE_TOPIC_HOURS", () => {
     }
     expect(deleted(w)).toEqual([]);
   });
+
+  it("drops a done mark that no longer holds, without a topic or no longer done, and keeps the message", async () => {
+    const w = await chat({ doneTopicHours: 1 });
+    await apply(w.context, failing("check:lint"));
+    await apply(w.context, recovered("check:lint"));
+    const done = await alarm(w);
+    w.clock.now = START + 2 * HOUR;
+    for (const item of [
+      { ...done, topic: null },
+      { ...done, state: "open" },
+    ] as Item[]) {
+      await w.context.store.put(item);
+      expect(await marks()).toHaveProperty("done");
+      await runSchedule(w.context);
+      expect(await marks()).toBeUndefined();
+      const after = await alarm(w);
+      expect(after).not.toHaveProperty("doneAt");
+      expect(after).not.toHaveProperty("cleared");
+      expect(after.messageId).toBe(done.messageId);
+    }
+    expect(deleted(w)).toEqual([]);
+  });
 });
 
 describe("removeTopic", () => {

@@ -200,6 +200,10 @@ describe("the pager in German", () => {
     expect(await help(24)).toBe(
       "Ein erledigtes Thema geht von selbst, mit seinen Nachrichten, 24 Stunden nachdem die Sache erledigt war.",
     );
+    expect(await help(1)).toBe(CATALOGS.de["chat.helpClearHour"]);
+    expect(await help(0.5)).toBe(
+      "Ein erledigtes Thema geht von selbst, mit seinen Nachrichten, 0,5 Stunden nachdem die Sache erledigt war.",
+    );
   });
 
   it("shows a contribution and its buttons in German, its title as it is", async () => {

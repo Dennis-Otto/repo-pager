@@ -386,8 +386,10 @@ function help(context: Context): string {
   let done = t("chat.helpKeep");
   if (hours === 0) {
     done = t("chat.helpClearNow");
+  } else if (hours === 1) {
+    done = t("chat.helpClearHour");
   } else if (hours !== null) {
-    done = t("chat.helpClear", { hours });
+    done = t("chat.helpClear", { hours: t.number(hours) });
   }
   return `${t("chat.help")}\n\n${done}`;
 }

@@ -251,7 +251,8 @@ async function renameAgain(
  * has calls to the network left: the rest waits for the next run. The list says
  * which are due without a read of each record, and only a deletion reads and
  * writes one, so that this costs no request of its own. A thing that opened again
- * or lost its topic since the list is left alone. A topic that Telegram refuses to
+ * or lost its topic since keeps its message and loses only its done mark, with one
+ * write, so the list stops naming it. A topic that Telegram refuses to
  * delete is tried again with the next run, for CLEAR_FOR, and then stays.
  */
 async function clearTopics(
@@ -271,10 +272,17 @@ async function clearTopics(
       if (
         item === null ||
         since === undefined ||
-        since + after > context.now() ||
-        !isDone(item) ||
-        (await clearTopic(context, item))
+        since + after > context.now()
       ) {
+        return;
+      }
+      if (!isDone(item) || (item.topic ?? null) === null) {
+        // A done mark that no longer holds goes, or every run would read it again.
+        delete item.doneAt;
+        await context.store.put(item);
+        return;
+      }
+      if (await clearTopic(context, item)) {
         return;
       }
       if (since + after <= context.now() - CLEAR_FOR) {
