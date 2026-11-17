@@ -1211,7 +1211,13 @@ async function pictures(
     ofRelease?.pictures?.number === ofRelease?.number
       ? ofRelease?.pictures
       : undefined;
-  if ((ofThisRelease?.sha ?? known?.sha) === signal.sha) {
+  // A release record from before the pager kept the message of its pictures named
+  // only the head whose album went.
+  const legacy =
+    ofRelease !== null && ofRelease.pictures === undefined
+      ? ofRelease.album
+      : undefined;
+  if ((ofThisRelease?.sha ?? legacy ?? known?.sha) === signal.sha) {
     return "pictures shown already";
   }
   const pull = await context.github.pullRequest(
@@ -1313,9 +1319,11 @@ async function pictures(
   // A message whose pictures the eye doesn't see says nothing to act on: quietly.
   await show(context, item, false, read.seen.length === 0);
   const fresh = item.messageId !== before;
-  if (fresh && earlier !== undefined && read.photos.length > 0) {
+  if (fresh && earlier !== undefined) {
     // A new message in place of one that is gone, such as with a topic that the
-    // maintainer deleted, brings its album, which went with the old one.
+    // maintainer deleted, brings its album, which went with the old one; without
+    // photos it names no album at all.
+    delete item.album;
     Object.assign(item, withAlbum(view, read, undefined));
     await show(context, item);
   }

@@ -266,6 +266,11 @@ export interface Release extends Base {
    * None in a record from before it.
    */
   pictures?: ReleasePictures;
+  /**
+   * The head whose pictures went into its topic, in a record from before
+   * `pictures`: read only, so that such a head doesn't go a second time.
+   */
+  album?: string;
 }
 
 /** The message of the pictures of a release pull request, and the album below it. */

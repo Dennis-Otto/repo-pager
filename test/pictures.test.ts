@@ -1453,6 +1453,34 @@ describe("the pictures of a pull request", () => {
     });
   });
 
+  it("name no album of an earlier head in a new message when the album went with the old one", async () => {
+    const w = await withArtifact(await artifact(changes));
+    await apply(w.context, signal());
+    withDeletedTopic(w.net, 900, [100]);
+    w.net.on("GET", `/repos/${REPO}/pulls/8`, () =>
+      json({
+        number: 8,
+        state: "open",
+        title: "Make it blue",
+        html_url: `https://github.com/${REPO}/pull/8`,
+        user: { login: "Dennis-Otto" },
+        head: { sha: "newer", repo: { full_name: REPO } },
+      }),
+    );
+    // The newer head has no photos to send.
+    w.context.settings.pictures = 0;
+    expect(await apply(w.context, signal("newer"))).toBe("pictures shown anew");
+    expect(w.net.telegram("sendMediaGroup")).toHaveLength(1);
+    const texts = [
+      ...w.net.telegram("sendMessage"),
+      ...w.net.telegram("editMessageText"),
+    ].map((call) => String(call.body.text));
+    expect(texts.at(-1)).not.toContain("album below");
+    const stored8 = await stored(w, keys.pictures(REPO, 8));
+    expect(stored8).toMatchObject({ sha: "newer", messageId: 101 });
+    expect(stored8).not.toHaveProperty("album");
+  });
+
   it("say in place when the newest head looks as committed again, and nothing for a new one", async () => {
     const w = await withArtifact(await artifact(changes));
     await apply(w.context, signal());
@@ -2082,6 +2110,15 @@ describe("the pictures of a release", () => {
     expect(edit?.body.text).toContain(
       "<i>Telegram refused the pictures: Bad Request: too big</i>",
     );
+  });
+
+  it("go at most once for a head that a release record from before their message names", async () => {
+    const w = await withRelease();
+    const release = (await stored(w, keys.release(REPO))) as Release;
+    await w.context.store.put({ ...release, album: SHA });
+    const calls = w.net.calls.length;
+    expect(await apply(w.context, signal())).toBe("pictures shown already");
+    expect(w.net.calls).toHaveLength(calls);
   });
 
   it("edit their message in place for a newer head, without a second album, and go anew when it is gone", async () => {

@@ -29,7 +29,7 @@ Leg eine Kopie dieses Repositorys an: einen Fork oder ein eigenes Repository. `w
 | `LANGUAGE` | `de` für Deutsch, `en` oder leer für Englisch |
 | `CLAUDE_TOKEN_EXPIRES` | Der Tag, an dem dein Token von Claude abläuft, oder leer |
 | `TIME_ZONE` | Deine Zeitzone, ein Name der [IANA](https://de.wikipedia.org/wiki/Zeitzonen-Datenbank) wie `Europe/Berlin` oder `America/New_York`, in der der Pager jeden Zeitpunkt einer Nachricht schreibt, etwa wann ein Workflow scheiterte; leer für UTC |
-| `PICTURES` | Wie viele Bilder das Album einer [sichtbaren Änderung](how-it-works.de.md#die-bilder-einer-sichtbaren-anderung) höchstens zeigt, die größten Änderungen, die das Auge sieht: `3` oder leer für drei, weniger für weniger, `0` für kein Album, nur die Nachricht |
+| `PICTURES` | Wie viele Bilder das Album einer [sichtbaren Änderung](how-it-works.md#die-bilder-einer-sichtbaren-änderung) höchstens zeigt, die größten Änderungen, die das Auge sieht: `3` oder leer für drei, weniger für weniger, `0` für kein Album, nur die Nachricht |
 
 **Die Workflows deiner Kopie:** Eine Kopie bringt die mehr als dreißig Workflows dieses Repositorys mit, die meisten davon nach Zeitplan: seine Prüfungen, seine Bots und sein Release, die diesem Repository mit seinen eigenen Geheimnissen und Apps dienen. Der Pager braucht keinen davon, denn Cloudflare baut und deployt ihn. Ein Fork beginnt mit ausgeschalteten GitHub Actions: Lass sie aus. Ein eigenes Repository führt sie aus: Schalte sie unter *Settings* → *Actions* → *General* aus, oder behalte nur *CI*, das eine Änderung deiner Kopie testet, und schalte jeden der anderen mit `gh workflow disable NAME` aus.
 
