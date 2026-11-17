@@ -1,0 +1,20 @@
+# The advisories that OSV-Scanner accepts in package-lock.json beside this file, the
+# tools that build and test the Worker: OSV-Scanner reads the osv-scanner.toml in the
+# folder of each lock file. Each acceptance names one advisory, says why it can't
+# reach the Worker and ends on a date, after which OSV-Scanner reports it again and a
+# person looks again. It keeps no update from Renovate: a version that fixes the
+# advisory comes as soon as it is out, and its entry goes with that update.
+
+# picomatch 4.0.7, the newest version, has no fix for this denial of service by a
+# crafted glob. Only the tests bring it: Vite, through Vitest, and tinyglobby, through
+# fdir, from vitest, @cloudflare/vitest-plugin and @vitest/coverage-istanbul
+# (`npm explain picomatch`). Wrangler doesn't use it, and the Worker that Wrangler
+# bundles from src/ doesn't hold it (`npm run build`), so nothing of it runs at
+# Cloudflare. The globs that it matches are those of vitest.config.ts and
+# scripts/another-instance.config.ts and of Vite itself, in this repository; a pull
+# request that changes them runs its own code in its own job anyway, so nobody else's
+# input reaches picomatch.
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-12-17
+reason = "picomatch is only in the tests (Vitest, Vite, tinyglobby), not in the Worker that Wrangler bundles, and matches only the globs of this repository; no version fixes it yet"
