@@ -7,6 +7,18 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.11.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.1...v0.11.0) (2026-11-17)
+
+### Features
+
+- The chat shows what is open: a thing that is done, such as a published release, an alarm that is green again or an issue that closed, gets one button, 🗑 **Delete topic**, which deletes its topic with every message at one press, and so does an ignored thing, beside ↩️ Bring back. With the new setting `DONE_TOPIC_HOURS` in `wrangler.jsonc`, the pager deletes done topics by itself after so many hours, `0` within 15 minutes, in the runs of its schedule and without a request of its own; empty keeps them as before. A thing that opens again, such as an issue with a new comment, opens a new topic. **Your step:** set `DONE_TOPIC_HOURS` in your copy of `wrangler.jsonc`, such as `"24"` to keep a done topic for a day, or leave it empty; topics that were done before the update get their button with their next change, and you delete the rest by hand once.
+
+### Bug fixes
+
+- The pictures of a visual change no longer flood the chat: a pull request gets one message, which each newer commit edits in place, quietly, and one album at most, of the three largest changes that the eye sees, instead of an album of up to ten pictures for every commit. The message says how many pictures differ and by how much at most, and links the report of the check. When the report of the check says that the eye sees none of the changes, the message is one quiet line without an album, and the pull request of a bot that merges by itself, such as Renovate's with auto-merge, keeps its pictures in its check. The new setting `PICTURES` in `wrangler.jsonc` takes the album down, to `0` for none.
+- The pager no longer uses up the free plan of Cloudflare on a busy day. It hears of each run of GitHub Actions once, as the end of its check suite, instead of three times for the run and twice for each of its jobs, and the Worker answers every event that means nothing at once, before Workers KV and the Durable Object; on a day with 11,746 runs, that is about 13,000 requests instead of 160,000. A run of the schedule while nothing is due reads nothing of Workers KV. **Your step:** in the settings of your GitHub App, under *Permissions & events*, untick the events **Check run** and **Workflow run** and keep **Check suite**, as [Set up](https://dennis-otto.github.io/repo-pager/setup/#4-the-github-app) describes; until then, their deliveries still count against the requests of the Worker, though they cost nothing else.
+- When a daily limit of the free plan is used up all the same, the pager tells you once that day in Telegram, and the health check of the control repository gets the limit in the answer of the pager.
+
 ## [0.10.1](https://github.com/Dennis-Otto/repo-pager/compare/v0.10.0...v0.10.1) (2026-11-15)
 
 ### Bug fixes
