@@ -9,6 +9,7 @@ import type {
   Contribution,
   Item,
   Release,
+  Report,
   Workflow,
 } from "../src/store.ts";
 import { texts } from "../src/texts.ts";
@@ -1499,6 +1500,37 @@ describe("messages", () => {
     );
     expect(await w.context.store.thread(501)).toBeNull();
     expect(await w.context.store.thread(9)).toBeNull();
+  });
+
+  it("send a text in the topic of a report of a run as a conversation of its own, without the report", async () => {
+    const w = await world();
+    withControl(w.net).on(
+      "POST",
+      "/repos/Dennis-Otto/control/dispatches",
+      () => new Response(null, { status: 204 }),
+    );
+    // The record that a report in its topic keeps, which links no topic.
+    const report: Report = {
+      ...base(ID),
+      repo: "Dennis-Otto/control",
+      installation: 0,
+      kind: "report",
+      state: "done",
+      topic: { thread: 77, name: "🧾 Run" },
+      doneAt: START,
+    };
+    await w.context.store.put(report);
+    const topic = { message_thread_id: 77, is_topic_message: true };
+    expect(await handleUpdate(w.context, message("Why?", topic))).toBe(
+      "free text sent",
+    );
+    expect(w.net.github("/dispatches")[0]?.body.client_payload).toEqual({
+      text: "Why?",
+      message: 500,
+      language: "en",
+    });
+    // Its answer goes into the topic of the report.
+    expect(await w.context.store.thread(500)).toBe(77);
   });
 
   it("explain a missing control repository in the thread of the text", async () => {

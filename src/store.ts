@@ -465,6 +465,21 @@ export interface Decision extends Base {
   ownAnswer?: string;
 }
 
+/**
+ * The report of a run of the maintainer's own agents, which the control repository
+ * forwards: no thing that waits for anyone, only the topic that its message opened,
+ * which 🗑 Delete topic deletes, and the schedule after DONE_TOPIC_HOURS. It is done
+ * from the start and never opens again, so its record expires after 30 days, and
+ * the clearing of its topic deletes it (clearTopic() of src/topics.ts). It keeps
+ * none of the text of the report: the title is in the name of its topic alone,
+ * which Telegram shows anyway. Its repository is the control repository, and it
+ * never acts on GitHub, so it has no installation of the app (0).
+ */
+export interface Report extends Base {
+  kind: "report";
+  state: "done";
+}
+
 /** The longest question of a decision, in characters, which its message shows whole. */
 export const MAX_QUESTION = 1000;
 
@@ -483,7 +498,8 @@ export type Item =
   | Release
   | Pictures
   | Reminder
-  | Decision;
+  | Decision
+  | Report;
 export type Kind = Item["kind"];
 
 const CLOSED: ReadonlySet<string> = new Set([
@@ -511,8 +527,8 @@ export function beforeJob(item: Item): Item["state"] | undefined {
 
 /**
  * The state in which each kind of thing is open, for one that was ignored before
- * the pager kept the state that ✖ Ignore closed it in: a reminder and a question
- * of an agent offer no ✖ Ignore, but are named for a complete list.
+ * the pager kept the state that ✖ Ignore closed it in: a reminder, a question of
+ * an agent and a report offer no ✖ Ignore, but are named for a complete list.
  */
 const OPEN: Readonly<Record<Kind, Item["state"]>> = {
   contribution: "new",
@@ -524,6 +540,7 @@ const OPEN: Readonly<Record<Kind, Item["state"]>> = {
   pictures: "open",
   reminder: "open",
   decision: "open",
+  report: "done",
 };
 
 /**
@@ -577,7 +594,8 @@ export const SECRET_ENTRY = "secret:";
  * The key of each kind of thing: one thing per issue, pull request or discussion,
  * whose numbers GitHub counts together, one bundle per repository, one thing per
  * vulnerability report, one thing per workflow of a repository, the pictures of
- * one pull request, and one question of an agent per id.
+ * one pull request, one question of an agent per id, and one report of a run per
+ * random value, since nothing names a report twice.
  */
 export const keys = {
   contribution: (repo: string, number: number) => `c:${repo}#${number}`,
@@ -589,6 +607,7 @@ export const keys = {
   pictures: (repo: string, number: number) => `p:${repo}#${number}`,
   reminder: (name: string) => `t:${name}`,
   decision: (ask: string) => `d:${ask}`,
+  report: (random: string) => `n:${random}`,
   /** When an alert of secret scanning was resolved, a mark of its own, no thing. */
   secretResolved: (repo: string, number: number) => `x:${repo}#${number}`,
 };
@@ -1078,6 +1097,14 @@ export class Store {
     await this.kv.put(`edit:${edit.prompt}`, JSON.stringify(edit), {
       expirationTtl: EDIT_PROMPT,
     });
+  }
+
+  /**
+   * Forget a thing for good, with one delete: a report of a run, whose topic
+   * went, which can never open again (clearTopic() of src/topics.ts).
+   */
+  async forget(id: string): Promise<void> {
+    await this.kv.delete(`item:${id}`);
   }
 
   /** Forget a prompt of ✏️ Edit once its answer came. */

@@ -10,6 +10,8 @@
  * without topics, or a topic that Telegram refuses, keeps the thing in the main view,
  * as before topics; a refusal pauses new topics for a while, and an open thing that
  * waits in the main view moves into a topic of its own with its next change.
+ * The report of a run opens a topic of its own as well, which keeps a small record
+ * for 🗑 Delete topic and the hours of the instance, never with ✅ in its name.
  */
 import { keyboard, noticeKeyboard } from "./buttons.ts";
 import { cut } from "./content.ts";
@@ -40,10 +42,11 @@ export const COLORS: Readonly<Record<Kind, TopicColor>> = {
   pictures: TOPIC_COLORS.rose,
   reminder: TOPIC_COLORS.violet,
   decision: TOPIC_COLORS.violet,
+  report: TOPIC_COLORS.green,
 };
 
-/** The color of the topic of a report of a run, which is no thing: what came out. */
-export const REPORT_COLOR = TOPIC_COLORS.green;
+/** The color of the topic of a report of a run: what came out. */
+export const REPORT_COLOR = COLORS.report;
 
 /** The name of the topic of a reminder, by the token that it names (src/tokens.ts). */
 const REMINDER_TOPICS = {
@@ -89,16 +92,24 @@ function what(item: Item, t: Texts): string {
       return t("topic.decision", {
         question: item.question.replace(/\s+/g, " ").trim(),
       });
+    case "report":
+      // The name that its topic was opened with, which holds its title.
+      return item.topic?.name ?? t("topic.report");
   }
 }
 
 /**
  * The name of a thing's topic, such as "🚨 repo-blueprint needs you": short, plain
- * text, and with ✅ in front once the thing is done.
+ * text, and with ✅ in front once the thing is done. A report is done from the
+ * start and keeps the name that its topic was opened with, so that retitle()
+ * never renames it.
  */
 export function topicName(item: Item, t: Texts): string {
   const name = what(item, t);
-  return cut(isDone(item) ? t("topic.done", { name }) : name, MAX_TOPIC_NAME);
+  return cut(
+    isDone(item) && item.kind !== "report" ? t("topic.done", { name }) : name,
+    MAX_TOPIC_NAME,
+  );
 }
 
 /**
@@ -421,9 +432,10 @@ export function noticeBelow(
 }
 
 /**
- * Send a message that opens a topic of its own, such as a report of a run, or into
- * the main view when the chat has no topics, Telegram refuses one, or new topics
- * pause. Returns the id of the message and its topic.
+ * Send a message that opens a topic of its own, a report of a run, with the
+ * buttons of that topic, or into the main view without them when the chat has no
+ * topics, Telegram refuses one, or new topics pause: there is no topic to delete.
+ * Returns the id of the message and its topic.
  */
 export async function postInNewTopic(
   context: Context,
@@ -434,7 +446,7 @@ export async function postInNewTopic(
 ): Promise<{ message: number; topic: Topic | null }> {
   const sent = await intoNewTopic(context, name, color, text, buttons);
   return sent === null
-    ? { message: await context.telegram.send(text, buttons), topic: null }
+    ? { message: await context.telegram.send(text, []), topic: null }
     : { message: sent.message, topic: { thread: sent.thread, name } };
 }
 
@@ -581,8 +593,10 @@ export function noteDone(context: Context, item: Item): void {
  * Delete the topic of a done thing with every message of it, by 🗑 Delete topic or
  * from the schedule, and forget it: the thing keeps no topic and no message, shows
  * nothing more while it stays done, and opens a new topic once it opens again. One
- * call to Telegram and one write. Returns whether the topic is gone, also when it
- * was gone already; a refusal of Telegram leaves the thing as it is.
+ * call to Telegram and one write. A report of a run never opens again, so its
+ * record goes with one delete in place of the write. Returns whether the topic is
+ * gone, also when it was gone already; a refusal of Telegram leaves the thing as
+ * it is.
  */
 export async function clearTopic(
   context: Context,
@@ -597,6 +611,12 @@ export async function clearTopic(
   item.cleared = true;
   delete item.doneAt;
   delete item.renameRefused;
-  await context.store.put(item);
+  // The thing keeps cleared all the same, by which act() of src/updates.ts knows
+  // that the message of the button went with the topic.
+  if (item.kind === "report") {
+    await context.store.forget(item.id);
+  } else {
+    await context.store.put(item);
+  }
   return true;
 }

@@ -11,7 +11,8 @@
  * after an outage of GitHub, which comes as a proposal in the thing's topic. It
  * also forwards what the maintainer's own agents send it: a question whose options
  * are buttons, whose answer the pager saves in the control repository, the end of
- * a question that the agent no longer needs, and the report of a run. The notes
+ * a question that the agent no longer needs, and the report of a run, whose topic
+ * goes with 🗑 Delete topic and after the hours of the instance. The notes
  * of a release come back in the language of the pager, and edit its message in
  * place (src/translations.ts). Once a day,
  * it asks for the health of the pager (src/health.ts), and any body may name the
@@ -19,6 +20,7 @@
  */
 import { allowed, callbackData, type Labeled, label } from "./buttons.ts";
 import { MAX_NOTE_LINES } from "./content.ts";
+import { describe } from "./context.ts";
 import { verifySignature } from "./crypto.ts";
 import { health } from "./health.ts";
 import { type Context, draftOrWhyNot, show } from "./pager.ts";
@@ -32,6 +34,7 @@ import {
   keys,
   MAX_OPTION,
   MAX_QUESTION,
+  type Report,
 } from "./store.ts";
 import { type Keyboard, REACTIONS, type Thread } from "./telegram.ts";
 import type { Texts } from "./texts.ts";
@@ -560,8 +563,15 @@ async function withdraw(
 }
 
 /**
- * The report of a run of an agent: a message in a topic of its own, without
- * buttons, which keeps nothing in the store.
+ * The report of a run of an agent: a message in a topic of its own with 🗑 Delete
+ * topic, whose small record keeps the topic, never the text, until the button or
+ * the schedule after DONE_TOPIC_HOURS deletes it (clearTopic() of src/topics.ts).
+ * The button names the record before the message goes, so its id comes from a
+ * random value, not from the topic. In the main view, where there is no topic to
+ * delete, it goes without a button and keeps nothing, as before. A record that
+ * fails to be written after the message went leaves the report in the chat, and
+ * its button answers that it is gone: the answer is reported all the same, so
+ * that nothing sends the report a second time.
  */
 async function report(
   context: Context,
@@ -572,13 +582,45 @@ async function report(
     message.title === undefined
       ? t("topic.report")
       : t("topic.reportTitled", { title: message.title });
-  await postInNewTopic(
+  const item: Report = {
+    id: await itemId(keys.report(crypto.randomUUID())),
+    kind: "report",
+    state: "done",
+    repo: context.settings.controlRepository,
+    // A report never acts on GitHub, so it needs no installation of the app.
+    installation: 0,
+    messageId: null,
+    note: null,
+    snoozedUntil: null,
+  };
+  const sent = await postInNewTopic(
     context,
     name,
     REPORT_COLOR,
     t("message.report", { text: html(message.text, MAX_DRAFT) }),
-    [],
+    [
+      [
+        {
+          text: label(t, "delete"),
+          callback_data: callbackData("delete", item),
+        },
+      ],
+    ],
   );
+  if (sent.topic !== null) {
+    item.messageId = sent.message;
+    item.topic = sent.topic;
+    // Done from the start: its hours run from now.
+    item.doneAt = context.now();
+    try {
+      await context.store.put(item);
+    } catch (error) {
+      // The log names the failure, never the text or the title of the report.
+      console.error(
+        `The record of a report in topic ${sent.topic.thread} was not kept: ${describe(error)}`,
+      );
+    }
+  }
   return new Response("reported");
 }
 

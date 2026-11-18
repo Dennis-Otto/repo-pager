@@ -1,6 +1,6 @@
 # The topics done before a version go once, by their links
 
-- Status: accepted, amends [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md)
+- Status: accepted, amends [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md), amended by [0035](0035-the-topic-of-a-report-goes-like-the-topic-of-a-done-thing.md)
 - Date: 2026-11-17
 
 ## Context
