@@ -457,6 +457,13 @@ describe("a topic that Telegram doesn't find while it is there", () => {
       version: null,
     });
     withLostThread(w.net, 900);
+    // A name stored with ✅, as a thing done in its old topic has: the new name
+    // takes the thing's name without it.
+    const pressed = await alarmOf(w);
+    await w.context.store.put({
+      ...pressed,
+      topic: { thread: 900, name: "✅ 🚨 demo braucht dich" },
+    });
     w.clock.now = START + 4 * HOUR;
     expect(await runSchedule(w.context)).toEqual([alarm.id]);
     expect(await alarmOf(w)).toMatchObject({
@@ -562,6 +569,18 @@ describe("a topic that is really gone", () => {
     expect(await alarmOf(w)).toMatchObject({
       messageId: 101,
       topic: { thread: 901 },
+    });
+    // The thing's own message opens the new topic, and the notice answers it there.
+    const alarm = await alarmOf(w);
+    const [own, notice] = sent(w).slice(-2);
+    expect(own).toMatchObject({
+      message_thread_id: 901,
+      reply_markup: { inline_keyboard: keyboard(alarm, w.context.t) },
+    });
+    expect(notice).toMatchObject({
+      message_thread_id: 901,
+      reply_parameters: { message_id: 101, allow_sending_without_reply: true },
+      reply_markup: { inline_keyboard: showButton(alarm.id) },
     });
     expect(ids(w, "deleteMessage")).toEqual([100]);
     // Only the edit in place: the delete counted as done.

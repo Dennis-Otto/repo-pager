@@ -213,13 +213,13 @@ async function intoThingTopic(
     item.doneAt = context.now();
   }
   if (left !== null && left.thread !== sent.thread) {
-    await leftBehind(context, left);
+    await leftBehind(context, left, what(item, context.t));
   }
   return sent.message;
 }
 
 /**
- * Rename a topic that a thing left for a new one ↪️ Moved, with its old name, so
+ * Rename a topic that a thing left for a new one ↪️ Moved, with the thing's name, so
  * that it no longer looks open: one that Telegram didn't find for a new message,
  * which is usually one that the maintainer deleted, but may be one that is still
  * there. The pager never deletes it, which would take its history with it for good
@@ -227,11 +227,13 @@ async function intoThingTopic(
  * a topic that is gone is passed over, and a refusal or a failure changes nothing
  * else, since the thing goes on in its new topic.
  */
-async function leftBehind(context: Context, topic: Topic): Promise<void> {
-  const name = cut(
-    context.t("topic.moved", { name: topic.name }),
-    MAX_TOPIC_NAME,
-  );
+async function leftBehind(
+  context: Context,
+  topic: Topic,
+  plain: string,
+): Promise<void> {
+  // The thing's name without ✅: "↪️ Moved: ✅ …" would read as two marks.
+  const name = cut(context.t("topic.moved", { name: plain }), MAX_TOPIC_NAME);
   try {
     // Usually the maintainer deleted it, which is no news for the log.
     await context.telegram.renameTopic(topic.thread, name, false);
