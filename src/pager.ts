@@ -77,10 +77,11 @@ import {
 } from "./telegram.ts";
 import { type Texts, texts } from "./texts.ts";
 import {
-  leaveMainView,
   moveIntoTopic,
   noteDone,
+  noticeBelow,
   postBelow,
+  retire,
   retitle,
   sendThing,
 } from "./topics.ts";
@@ -144,8 +145,9 @@ function pastLater(item: Item): boolean {
 
 /**
  * Show a thing: edit its message, or send a new one when it has none, when it is
- * gone, or with fresh, which also deletes the old one, as "Later" does when its
- * time is up. A new message goes into the thing's topic, and its first one opens
+ * gone, or with fresh, which also takes the old one away, as "Later" does when its
+ * time is up and ⬇️ Show does: deleted, or without its buttons when Telegram
+ * deletes it no more (retire()). A new message goes into the thing's topic, and its first one opens
  * that; the name of the topic follows the thing. An open thing that waits in the
  * main view for its topic, such as one whose topic Telegram refused, moves into a
  * new topic instead of the edit, quietly, and its old message goes. Then keep its
@@ -202,9 +204,9 @@ export async function show(
   try {
     try {
       if (left !== null) {
-        await leaveMainView(context, left, text);
+        await retire(context, left, text);
       } else if (old !== null && fresh) {
-        await context.telegram.remove(old);
+        await retire(context, old, text);
       }
     } finally {
       // The name of the topic follows the thing also when the old message stays.
@@ -406,7 +408,7 @@ async function addEntry(
     return `new entry in the ${kind}, in a new message`;
   }
   try {
-    await postBelow(
+    await noticeBelow(
       context,
       known,
       context.t(
@@ -889,7 +891,7 @@ async function comment(
     return `comment shown in a new message${outcome}`;
   }
   try {
-    await postBelow(
+    await noticeBelow(
       context,
       known,
       context.t(
@@ -1041,7 +1043,7 @@ async function activity(
     return `${signal.what} shown in a new message`;
   }
   try {
-    await postBelow(
+    await noticeBelow(
       context,
       known,
       context.t(ACTIVITY[signal.what].notice, {

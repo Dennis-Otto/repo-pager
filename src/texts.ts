@@ -31,6 +31,7 @@ const en = {
   "button.done": "✅ Renewed",
   "button.delete": "🗑 Delete topic",
   "button.confirm": "✅ Confirm",
+  "button.show": "⬇️ Show",
 
   "state.drafting": "✍️ The control repository drafts a reply…",
   "state.sent": "✅ Sent.",
@@ -218,6 +219,7 @@ const en = {
   "answer.restored": "Brought back.",
   "answer.done": "Done.",
   "answer.deleted": "Topic deleted.",
+  "answer.shown": "⬇️ Sent anew.",
   "answer.notDeleted": "😢 Telegram didn't delete the topic. Try again later.",
   "answer.chosen": "Saved for your agent: {option}",
   "answer.refused": "GitHub refused: {detail}",
@@ -385,6 +387,7 @@ const en = {
   "topic.report": "🧾 Run",
   "topic.reportTitled": "🧾 Run: {title}",
   "topic.done": "✅ {name}",
+  "topic.moved": "↪️ Moved: {name}",
 
   "reminder.days.one": "1 day",
   "reminder.days.many": "{days} days",
@@ -466,6 +469,7 @@ const de: Catalog = {
   "button.done": "✅ Erneuert",
   "button.delete": "🗑 Thema löschen",
   "button.confirm": "✅ Bestätigen",
+  "button.show": "⬇️ Zeigen",
 
   "state.drafting": "✍️ Das Steuer-Repository entwirft eine Antwort …",
   "state.sent": "✅ Gesendet.",
@@ -663,6 +667,7 @@ const de: Catalog = {
   "answer.restored": "Zurückgeholt.",
   "answer.done": "Erledigt.",
   "answer.deleted": "Thema gelöscht.",
+  "answer.shown": "⬇️ Neu gesendet.",
   "answer.notDeleted":
     "😢 Telegram hat das Thema nicht gelöscht. Versuch es später noch einmal.",
   "answer.chosen": "Für deinen Agenten gespeichert: {option}",
@@ -827,6 +832,7 @@ const de: Catalog = {
   "topic.report": "🧾 Lauf",
   "topic.reportTitled": "🧾 Lauf: {title}",
   "topic.done": "✅ {name}",
+  "topic.moved": "↪️ Umgezogen: {name}",
 
   "reminder.days.one": "1 Tag",
   "reminder.days.many": "{days} Tagen",

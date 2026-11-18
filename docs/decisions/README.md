@@ -7,7 +7,7 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | Record | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-record-decisions.md) | Record the decisions that shape the project | accepted |
-| [0002](0002-buttons-of-an-allowlist-act-and-claude-only-proposes.md) | Buttons of an allowlist act, and Claude only proposes | accepted |
+| [0002](0002-buttons-of-an-allowlist-act-and-claude-only-proposes.md) | Buttons of an allowlist act, and Claude only proposes | accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) |
 | [0003](0003-the-control-repository-answers-the-worker.md) | The control repository answers the Worker, and a fix gets a token of its own | accepted |
 | [0004](0004-one-language-per-pager-from-a-catalog.md) | One language per pager, from a catalog of texts | accepted |
 | [0005](0005-one-topic-per-thing-kept-when-done.md) | One topic per thing, kept when it is done | accepted, amended by [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md) and [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md) |
@@ -16,22 +16,22 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0008](0008-an-agent-reads-its-answer-from-a-branch-of-the-control-repository.md) | An agent reads its answer from a branch of the control repository | accepted, amended by [0010](0010-a-text-in-the-topic-of-a-question-answers-it-and-an-agent-may-take-it-back.md) |
 | [0009](0009-a-discussion-that-github-dealt-with-is-done-and-an-own-draft-stays.md) | A discussion that GitHub dealt with is done, and a draft of the maintainer's own stays | accepted |
 | [0010](0010-a-text-in-the-topic-of-a-question-answers-it-and-an-agent-may-take-it-back.md) | A text in the topic of a question answers it, and an agent may take its question back | accepted |
-| [0011](0011-a-comment-on-an-issue-or-a-pull-request-edits-its-thing-and-notifies-once.md) | A comment on an issue or a pull request edits its thing, and notifies once | accepted |
+| [0011](0011-a-comment-on-an-issue-or-a-pull-request-edits-its-thing-and-notifies-once.md) | A comment on an issue or a pull request edits its thing, and notifies once | accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) |
 | [0012](0012-the-schedule-has-github-deliver-a-failed-event-again.md) | The schedule has GitHub deliver a failed event again, and every signal may come twice | accepted |
 | [0013](0013-the-control-repository-checks-the-health-of-the-pager-once-a-day.md) | The control repository checks the health of the pager once a day, and GitHub names the day of its tokens | accepted |
 | [0014](0014-a-workflow-that-fails-on-main-pages-once-after-its-rerun.md) | A workflow that fails on main pages once, after its rerun | accepted |
 | [0015](0015-a-vulnerability-report-pages-without-a-word-of-what-it-says.md) | A vulnerability report pages without a word of what it says, and a secret by its kind and its file | accepted |
 | [0016](0016-the-album-of-a-visual-change-shows-the-changed-pixels-first.md) | The album of a visual change shows the changed pixels first, and promises red only when it has them | accepted, amended by [0027](0027-the-album-of-a-visual-change-shows-one-comparison-per-picture.md) |
-| [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md) | A topic that the maintainer deleted opens anew with the next message of its thing | accepted |
+| [0017](0017-a-topic-that-the-maintainer-deleted-opens-anew-with-the-next-message-of-its-thing.md) | A topic that the maintainer deleted opens anew with the next message of its thing | accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) |
 | [0018](0018-the-pager-is-repo-pager-which-everyone-runs-as-an-instance-of-their-own.md) | The pager is Repo Pager, which everyone runs as an instance of their own | accepted |
 | [0019](0019-the-control-repository-comes-from-a-public-template-which-every-copy-follows.md) | The control repository comes from a public template, which every copy follows | accepted |
 | [0020](0020-the-notes-of-a-release-come-in-the-language-of-the-pager.md) | The notes of a release come in the language of the pager | accepted |
-| [0021](0021-a-thing-that-telegram-kept-out-of-a-topic-moves-into-it-with-its-next-change.md) | A thing that Telegram kept out of a topic moves into it with its next change | accepted |
-| [0022](0022-a-new-entry-of-an-open-bundle-notifies-once.md) | A new entry of an open bundle notifies, once for a burst | accepted |
+| [0021](0021-a-thing-that-telegram-kept-out-of-a-topic-moves-into-it-with-its-next-change.md) | A thing that Telegram kept out of a topic moves into it with its next change | accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) |
+| [0022](0022-a-new-entry-of-an-open-bundle-notifies-once.md) | A new entry of an open bundle notifies, once for a burst | accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) |
 | [0023](0023-a-thing-that-fails-in-a-run-of-the-schedule-costs-only-itself.md) | A thing that fails in a run of the schedule costs only itself | accepted |
 | [0024](0024-a-copy-of-the-pager-deploys-every-push-to-its-main.md) | A copy of the pager deploys every push to its main | accepted |
 | [0025](0025-the-pager-watches-the-repositories-of-owners-beside-its-maintainer.md) | The pager watches the repositories of owners beside its maintainer | accepted |
-| [0026](0026-a-review-new-commits-and-a-reopen-are-news-of-a-contribution.md) | A review, new commits and a reopen are news of a contribution | accepted |
+| [0026](0026-a-review-new-commits-and-a-reopen-are-news-of-a-contribution.md) | A review, new commits and a reopen are news of a contribution | accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) |
 | [0027](0027-the-album-of-a-visual-change-shows-one-comparison-per-picture.md) | The album of a visual change shows one comparison per picture, of one frame | accepted |
 | [0028](0028-an-ignored-thing-comes-back-with-a-button.md) | An ignored thing comes back with a button | accepted |
 | [0029](0029-a-visual-change-sends-one-message-per-pull-request-with-the-few-changes-that-the-eye-sees.md) | A visual change sends one message per pull request, with the few changes that the eye sees | accepted |
@@ -39,3 +39,4 @@ Copy [the template](0000-template.md) to the next free number and describe the d
 | [0031](0031-a-done-topic-goes-with-a-button-and-after-the-hours-of-the-instance.md) | A done topic goes with a button, and after the hours of the instance | accepted, amended by [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md) |
 | [0032](0032-workers-logs-keeps-every-line-of-a-failure-and-no-log-of-each-invocation.md) | Workers Logs keeps every line of a failure, and no log of each invocation | accepted |
 | [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md) | The topics done before a version go once, by their links | accepted |
+| [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md) | A notice answers its thing, and brings its message back with a button | accepted |

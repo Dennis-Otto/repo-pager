@@ -47,6 +47,22 @@ describe("the catalogs", () => {
     }
   });
 
+  it("name ⬇️ Show, its answer and a topic that a thing left in every language", () => {
+    expect(
+      LANGUAGES.map((language) => {
+        const t = texts(language);
+        return [
+          t("button.show"),
+          t("answer.shown"),
+          t("topic.moved", { name: "🚨 demo" }),
+        ];
+      }),
+    ).toEqual([
+      ["⬇️ Show", "⬇️ Sent anew.", "↪️ Moved: 🚨 demo"],
+      ["⬇️ Zeigen", "⬇️ Neu gesendet.", "↪️ Umgezogen: 🚨 demo"],
+    ]);
+  });
+
   it("keep the placeholders, the tags and the emojis of each text", () => {
     for (const language of LANGUAGES) {
       for (const key of KEYS) {

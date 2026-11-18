@@ -572,6 +572,31 @@ describe("the reminder of a vulnerability report", () => {
     expect(w.net.github(STATE)).toHaveLength(1);
   });
 
+  it("takes the buttons off its old message, which Telegram deletes no more after six days", async () => {
+    const w = await due("triage");
+    w.net.on("POST", /\/deleteMessage$/, () =>
+      json(
+        {
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: message can't be deleted for everyone",
+        },
+        400,
+      ),
+    );
+    const old = (await advisory(w)).messageId;
+    expect(await runSchedule(w.context)).toHaveLength(1);
+    const edit = w.net.telegram("editMessageText").at(-1)?.body;
+    expect(edit).toMatchObject({
+      message_id: old,
+      reply_markup: { inline_keyboard: [] },
+    });
+    expect(edit.text).toContain("Still in triage on GitHub");
+    // What the report says stays out of it, as out of every message.
+    expect(JSON.stringify(edit)).not.toContain(SUMMARY);
+    expect((await advisory(w)).messageId).not.toBe(old);
+  });
+
   it("comes too when GitHub doesn't tell the app the state", async () => {
     const w = await due(null, 403);
     expect(await runSchedule(w.context)).toHaveLength(1);

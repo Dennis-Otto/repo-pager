@@ -3,7 +3,7 @@
  * action checks again what it acts on, such as the head of a release pull request,
  * and writes only through the few calls of github.ts.
  */
-import { allowed, headTag, type Press } from "./buttons.ts";
+import { allowed, headTag, offersShow, type Press } from "./buttons.ts";
 import { cut } from "./content.ts";
 import { describe } from "./context.ts";
 import {
@@ -346,17 +346,31 @@ async function restore(context: Context, item: Item): Promise<Reply> {
   return done(context.t("answer.restored"));
 }
 
+/**
+ * Whether a thing still offers the action of a pressed button: ⬇️ Show of a notice
+ * by its own rule, every other button by the allowlist.
+ */
+function offers(item: Item, action: Press["action"]): boolean {
+  return action === "show" ? offersShow(item) : allowed(item).includes(action);
+}
+
 /** Run the action of a pressed button on its thing, if the thing still offers it. */
 export async function press(
   context: Context,
   item: Item,
   pressed: Press,
 ): Promise<Reply> {
-  if (!allowed(item).includes(pressed.action)) {
+  if (!offers(item, pressed.action)) {
     return refused(context.t("answer.outdated"));
   }
   try {
     switch (pressed.action) {
+      case "show":
+        // The thing's message anew at the end of its topic, with its buttons, and
+        // quietly, since the maintainer looks at the chat; its state stays, a
+        // "Later" too, and its old message goes.
+        await show(context, item, true, true);
+        return done(context.t("answer.shown"));
       case "later": {
         const hours = context.settings.laterHours;
         item.snoozedUntil = context.now() + hours * 3600000;

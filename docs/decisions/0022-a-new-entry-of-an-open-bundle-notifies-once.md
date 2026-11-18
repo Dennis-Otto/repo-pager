@@ -1,6 +1,6 @@
 # A new entry of an open bundle notifies, once for a burst
 
-- Status: accepted
+- Status: accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md)
 - Date: 2026-11-12
 
 ## Context

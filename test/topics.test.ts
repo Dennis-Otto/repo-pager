@@ -29,7 +29,6 @@ import { Telegram, TOPIC_COLORS } from "../src/telegram.ts";
 import { texts } from "../src/texts.ts";
 import {
   about,
-  leaveMainView,
   MAX_ABOUT,
   MAX_LINKS,
   MAX_TOPIC_NAME,
@@ -37,6 +36,7 @@ import {
   postBelow,
   postInNewTopic,
   REPORT_COLOR,
+  retire,
   TOPIC_PAUSE,
   topicName,
 } from "../src/topics.ts";
@@ -1198,9 +1198,7 @@ describe("a topic that Telegram refuses", () => {
       .on("POST", /\/editMessageText$/, () => {
         throw new TypeError("network");
       });
-    await expect(leaveMainView(broken.context, 7, "x")).rejects.toThrow(
-      "network",
-    );
+    await expect(retire(broken.context, 7, "x")).rejects.toThrow("network");
   });
 });
 

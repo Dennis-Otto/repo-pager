@@ -32,6 +32,7 @@ export const ACTIONS = [
   "done",
   "delete",
   "choose",
+  "show",
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -210,6 +211,23 @@ function options(item: Decision): Keyboard {
   return item.options.map((option, place) => [
     { text: option, callback_data: `choose:${item.id}:${place}` },
   ]);
+}
+
+/**
+ * Whether ⬇️ Show, the button of a notice below a thing's message, such as that of
+ * a new comment, sends the thing's message anew: while the thing is not done, and
+ * so neither ignored nor cleared. The thing's own message never shows it, so it is
+ * no action of allowed(), and a press of it asks this in place of allowed().
+ */
+export function offersShow(item: Item): boolean {
+  return !isDone(item);
+}
+
+/** The keyboard of a notice below a thing's message: ⬇️ Show, which brings that message back. */
+export function noticeKeyboard(item: Item, t: Texts): Keyboard {
+  return [
+    [{ text: label(t, "show"), callback_data: callbackData("show", item) }],
+  ];
 }
 
 /** The keyboard of a thing: its allowed actions, two buttons a row. */

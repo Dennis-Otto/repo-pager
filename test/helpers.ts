@@ -329,25 +329,47 @@ export function withTopics(net: Net, first = 900): Net {
 
 /**
  * A topic that the maintainer deleted, and with it each of its messages, as
- * messages names them: Telegram finds neither the thread for a new message or an
- * album nor a message of it to edit.
+ * messages names them: Telegram finds neither the thread for a new message, an
+ * album or a new name nor a message of it to edit or delete.
  */
 export function withDeletedTopic(
   net: Net,
   thread: number,
   messages: readonly number[] = [],
 ): Net {
-  const refused = (description: string) =>
-    json({ ok: false, error_code: 400, description }, 400);
-  return net
-    .on("POST", /\/(sendMessage|sendMediaGroup|sendPhoto)$/, (call) =>
-      Number(call.body.message_thread_id) === thread
-        ? refused("Bad Request: message thread not found")
-        : undefined,
-    )
+  return withLostThread(net, thread)
     .on("POST", /\/editMessageText$/, (call) =>
       messages.includes(call.body.message_id)
         ? refused("Bad Request: message to edit not found")
         : undefined,
+    )
+    .on("POST", /\/deleteMessage$/, (call) =>
+      messages.includes(call.body.message_id)
+        ? refused("Bad Request: message to delete not found")
+        : undefined,
+    )
+    .on("POST", /\/editForumTopic$/, (call) =>
+      Number(call.body.message_thread_id) === thread
+        ? refused("Bad Request: TOPIC_ID_INVALID")
+        : undefined,
     );
+}
+
+/**
+ * A topic that Telegram doesn't find for a new message or an album, though it is
+ * still there with its messages: they can be edited and deleted, and the topic
+ * renamed. Such an answer is what makes a thing leave a topic that it doesn't
+ * leave for good.
+ */
+export function withLostThread(net: Net, thread: number): Net {
+  return net.on("POST", /\/(sendMessage|sendMediaGroup|sendPhoto)$/, (call) =>
+    Number(call.body.message_thread_id) === thread
+      ? refused("Bad Request: message thread not found")
+      : undefined,
+  );
+}
+
+/** A refusal of the Bot API with its description, as a Bad Request. */
+export function refused(description: string): Response {
+  return json({ ok: false, error_code: 400, description }, 400);
 }

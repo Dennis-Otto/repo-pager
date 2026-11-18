@@ -21,6 +21,7 @@ Nothing gets lost on the way, and a quiet day doesn't hide a pager that broke: a
 | ✅ Confirm | Runs the one action that an answer of the control repository proposes, such as a merge you asked about, or 🔁 Rerun after a fix found an outage of GitHub, while its thing still offers it |
 | ⏰ Later, ✖ Ignore | Brings the thing back after four hours, or closes it |
 | ↩️ Bring back | Opens an ignored thing again, as it was |
+| ⬇️ Show | On a notice below a thing's message, such as a new comment, which answers that message: sends it anew with its buttons to the end of its topic |
 
 `/open` in the chat lists what still waits for you, one line per thing with a button, by repository, and `/status` says how the pager is.
 

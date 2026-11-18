@@ -1,6 +1,6 @@
 # A review, new commits and a reopen are news of a contribution
 
-- Status: accepted
+- Status: accepted, amended by [0034](0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md)
 - Date: 2026-11-12
 
 ## Context
