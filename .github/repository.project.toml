@@ -3,6 +3,14 @@
 # lists gain their new items, and values replace those of repository.toml.
 # https://github.com/Dennis-Otto/repo-blueprint/blob/main/docs/features/settings.md#settings-as-code
 
+[variables]
+# The release bot merges every release by itself, once a day in its daily run when
+# its checks pass, as in the blueprint: the maintainer's decision of 2026-11-18. Each
+# release goes live on the maintainer's own Worker through Workers Builds
+# (docs/releases.md). A release at once, for a fix that can't wait, is a start of the
+# workflow Release by hand: gh workflow run release.yml
+RELEASE_MERGE = "daily"
+
 # Checks that only this project runs, such as its end-to-end tests:
 # [branch]
 # required_checks = ["e2e"]
