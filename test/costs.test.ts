@@ -34,7 +34,7 @@ import {
   type PagerEnv,
   type Settings,
 } from "../src/settings.ts";
-import type { Item } from "../src/store.ts";
+import { type Item, itemId, keys } from "../src/store.ts";
 import {
   LINK_LIFE,
   SWEEP,
@@ -43,6 +43,8 @@ import {
   SWEEP_WRITES,
   type Sweep,
 } from "../src/sweep.ts";
+import { languageOf, texts } from "../src/texts.ts";
+import { topicName } from "../src/topics.ts";
 import wrangler from "../wrangler.jsonc?raw";
 import {
   appKey,
@@ -668,6 +670,185 @@ describe("the schedule", () => {
     clock.now = START + ANSWER_WITHIN + QUARTER;
     expect(await scheduled()).toMatchObject({ kvReads: 1, kvWrites: 1 });
     expect(net.telegram("setMessageReaction")).toHaveLength(1);
+  });
+});
+
+/** Press a button of the message shownIn, as Telegram sends the press, and return what it cost. */
+async function pressed(data: string, shownIn: number): Promise<Cost> {
+  const environment = await counted();
+  const body = JSON.stringify({
+    update_id: 1,
+    callback_query: {
+      id: "q1",
+      from: { id: CHAT },
+      data,
+      message: { message_id: shownIn, chat: { id: CHAT } },
+    },
+  });
+  cost = nothing();
+  cost.requests += 1;
+  const before = lines();
+  const response = await worker.fetch(
+    new Request("https://pager.example/telegram", {
+      method: "POST",
+      headers: { "x-telegram-bot-api-secret-token": "telegram-secret" },
+      body,
+    }) as Request<unknown, IncomingRequestCfProperties>,
+    environment,
+  );
+  expect(response.status).toBe(200);
+  logged(before);
+  return cost;
+}
+
+describe("a notice and its button ⬇️ Show", () => {
+  const ID = "i000000000000003";
+  const store = async () =>
+    makeContext(
+      await settingsOf(),
+      env as PagerEnv,
+      net.fetch,
+      () => clock.now,
+      async () => {},
+      undefined,
+      local,
+    ).store;
+  /** An alarm in its topic 900 as message 7, in a state of the test's own. */
+  const alarm = (state: "open" | "recovered" | "ignored"): Item => {
+    const item = {
+      id: ID,
+      repo: HERE,
+      installation: 9,
+      messageId: 7,
+      note: null,
+      kind: "alarm",
+      state,
+      entries: [{ key: "check:lint", label: "lint fails", url: "https://x" }],
+      snoozedUntil: null,
+      topic: { thread: 900, name: "" },
+    } as Item;
+    // Named as the language of the instance names it, so that no rename follows.
+    const t = texts(languageOf((env as PagerEnv).LANGUAGE) ?? "en");
+    item.topic = { thread: 900, name: topicName(item, t) };
+    return item;
+  };
+  /** The methods of Telegram that the pager called, in order. */
+  const methods = () =>
+    net.calls
+      .filter((call) => call.url.startsWith("https://api.telegram.org/"))
+      .map((call) => call.url.slice(call.url.lastIndexOf("/") + 1));
+
+  it("costs nothing more for the notice: the edit of the thing's message and one sendMessage, as before", async () => {
+    const url = `https://github.com/${HERE}/issues/12`;
+    const issue = {
+      id: await itemId(keys.contribution(HERE, 12)),
+      repo: HERE,
+      installation: 9,
+      messageId: 7,
+      note: null,
+      kind: "contribution",
+      state: "new",
+      number: 12,
+      pull: false,
+      title: "It breaks",
+      url,
+      author: "octocat",
+      draft: null,
+      draftVersion: 0,
+      snoozedUntil: null,
+      topic: { thread: 900, name: "" },
+    } as Item;
+    const t = texts(languageOf((env as PagerEnv).LANGUAGE) ?? "en");
+    issue.topic = { thread: 900, name: topicName(issue, t) };
+    await (await store()).put(issue);
+    expect(
+      await price("issue_comment", {
+        action: "created",
+        issue: {
+          number: 12,
+          title: "It breaks",
+          html_url: url,
+          user: { login: "octocat", type: "User" },
+          state: "open",
+        },
+        comment: {
+          id: 99,
+          html_url: `${url}#issuecomment-99`,
+          user: { login: "hubot", type: "User" },
+        },
+      }),
+    ).toMatchObject({
+      requests: 1,
+      objects: 1,
+      kvReads: 1,
+      kvWrites: 1,
+      kvDeletes: 0,
+      kvLists: 0,
+    });
+    expect(methods()).toEqual(["editMessageText", "sendMessage"]);
+    expect(
+      net.telegram("sendMessage")[0]?.body.reply_markup.inline_keyboard,
+    ).toHaveLength(1);
+  });
+
+  it("costs one read and one write of Workers KV for a press, with one request of the Worker and one of the object", async () => {
+    await (await store()).put(alarm("open"));
+    expect(await pressed(`show:${ID}`, 50)).toMatchObject({
+      requests: 1,
+      objects: 1,
+      kvReads: 1,
+      kvWrites: 1,
+      kvDeletes: 0,
+      kvLists: 0,
+    });
+    expect(methods()).toEqual([
+      "sendMessage",
+      "deleteMessage",
+      "answerCallbackQuery",
+      "editMessageReplyMarkup",
+    ]);
+  });
+
+  it("costs one more call of Telegram, and nothing more of Workers KV, when Telegram deletes the old message no more", async () => {
+    await (await store()).put(alarm("open"));
+    net.on("POST", /\/deleteMessage$/, () =>
+      json(
+        {
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: message can't be deleted for everyone",
+        },
+        400,
+      ),
+    );
+    expect(await pressed(`show:${ID}`, 50)).toMatchObject({
+      kvReads: 1,
+      kvWrites: 1,
+    });
+    expect(methods()).toEqual([
+      "sendMessage",
+      "deleteMessage",
+      "editMessageText",
+      "answerCallbackQuery",
+      "editMessageReplyMarkup",
+    ]);
+  });
+
+  it("costs one read and no write for a press that is refused", async () => {
+    for (const state of ["recovered", "ignored"] as const) {
+      net.calls = [];
+      await (await store()).put(alarm(state));
+      expect(await pressed(`show:${ID}`, 50)).toMatchObject({
+        requests: 1,
+        objects: 1,
+        kvReads: 1,
+        kvWrites: 0,
+      });
+      expect(methods()).toEqual([
+        "answerCallbackQuery",
+        "editMessageReplyMarkup",
+      ]);
+    }
   });
 });
 

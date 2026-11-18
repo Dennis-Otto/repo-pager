@@ -827,7 +827,7 @@ describe("the calls of a run of the schedule", () => {
     // Things that "Later" put aside come back, each as a new message that
     // replaces the old one: as many as leave room for the failures and one page
     // of every outcome.
-    for (let index = 0; index < 11; index += 1) {
+    for (let index = 0; index < 9; index += 1) {
       await w.context.store.put({
         ...base(`i0000000000000${String(index).padStart(2, "0")}`),
         kind: "alarm",
@@ -837,7 +837,7 @@ describe("the calls of a run of the schedule", () => {
       } as Item);
     }
     const shown = await runSchedule(w.context);
-    expect(shown).toHaveLength(13);
+    expect(shown).toHaveLength(11);
     expect(lists(w)).toEqual([FAILURES, DELIVERIES]);
     expect(w.context.subrequests()).toBe(w.net.calls.length);
     expect(w.net.calls.length).toBeLessThanOrEqual(SUBREQUESTS);

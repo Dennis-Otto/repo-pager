@@ -16,10 +16,11 @@ import type { Advisory } from "./store.ts";
 
 /**
  * The calls to the network that a reminder takes at most: a token of the app, the
- * state of the advisory, its new message, the delete of the old one and a rename
- * of its topic.
+ * state of the advisory, its new message, the delete of the old one, the edit that
+ * takes its buttons off when Telegram refuses the delete, as it does for a message
+ * older than 48 hours, and a rename of its topic.
  */
-export const REMINDER_CALLS = 5;
+export const REMINDER_CALLS = 6;
 
 /** What GitHub says of the state of the report, or null when it doesn't answer the app. */
 async function stateOf(

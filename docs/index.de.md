@@ -21,6 +21,7 @@ Unterwegs geht nichts verloren, und ein ruhiger Tag verbirgt keinen Pager, der k
 | ✅ Bestätigen | Führt die eine Aktion aus, die eine Antwort des Steuer-Repositorys vorschlägt, etwa ein Merge, nach dem du gefragt hast, oder 🔁 Neu starten, wenn ein Fix einen Ausfall von GitHub fand, solange ihre Sache sie noch anbietet |
 | ⏰ Später, ✖ Ignorieren | Bringt die Sache nach vier Stunden zurück oder schließt sie |
 | ↩️ Zurückholen | Öffnet eine ignorierte Sache wieder, wie sie war |
+| ⬇️ Zeigen | Auf einem Hinweis unter der Nachricht einer Sache, etwa einem neuen Kommentar, der auf diese Nachricht antwortet: sendet sie mit ihren Knöpfen neu ans Ende ihres Themas |
 
 `/open` im Chat listet, was noch auf dich wartet, eine Zeile pro Sache mit Knopf, nach Repository, und `/status` sagt, wie es dem Pager geht.
 

@@ -296,7 +296,11 @@ describe("a draft that the maintainer wrote himself", () => {
     expect(w.net.telegram("sendMessage")[0]?.body).toMatchObject({
       text: "🤖 <b>Another draft came</b> for Dennis-Otto/demo#12, but your own text stays the reply. Only for you to read:\n<blockquote>Answers &lt;b&gt;DC_8&lt;/b&gt;</blockquote>",
       message_thread_id: 900,
-      reply_markup: { inline_keyboard: [] },
+      // It answers the thing's message, where ✅ Send is, and brings it back.
+      reply_parameters: { message_id: 7, allow_sending_without_reply: true },
+      reply_markup: {
+        inline_keyboard: [[{ text: "⬇️ Show", callback_data: `show:${ID}` }]],
+      },
     });
     // Its message, with ✅ Send of the maintainer's text, stays as it is.
     expect(w.net.telegram("editMessageText")).toHaveLength(0);
@@ -346,9 +350,19 @@ describe("a draft that the maintainer wrote himself", () => {
     ).toContain("✅ Send");
     expect(draft).toMatchObject({
       message_thread_id: 901,
-      reply_markup: { inline_keyboard: [] },
+      reply_parameters: { message_id: 100, allow_sending_without_reply: true },
+      reply_markup: {
+        inline_keyboard: [[{ text: "⬇️ Show", callback_data: `show:${ID}` }]],
+      },
     });
     expect(draft?.text).toContain("Only for you to read");
+    // Its old message went with the topic, which is renamed and never deleted.
+    expect(w.net.telegram("deleteMessage")[0]?.body.message_id).toBe(7);
+    expect(w.net.telegram("editForumTopic")[0]?.body).toMatchObject({
+      message_thread_id: 900,
+      name: "↪️ Moved: 💬 demo#12 It breaks",
+    });
+    expect(w.net.telegram("deleteForumTopic")).toHaveLength(0);
     const kept = (await w.context.store.get(ID)) as Contribution;
     expect(kept).toMatchObject({
       state: "draft",

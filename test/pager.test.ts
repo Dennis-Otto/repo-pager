@@ -528,12 +528,18 @@ describe("comments on issues and pull requests", () => {
       "⏰ Later",
       "✖ Ignore",
     ]);
-    // The edit notifies nobody: one message below it in the topic does.
+    // The edit notifies nobody: one message below it in the topic does, which
+    // answers the thing's message and brings it back with ⬇️ Show.
     const [, notice] = w.net.telegram("sendMessage");
     expect(notice?.body).toMatchObject({
       text: `💬 <b>hubot</b> commented: <a href="${ISSUE}#issuecomment-99">#12 It breaks</a>`,
       message_thread_id: 900,
-      reply_markup: { inline_keyboard: [] },
+      reply_parameters: { message_id: 100, allow_sending_without_reply: true },
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "⬇️ Show", callback_data: `show:${(await thing(w)).id}` }],
+        ],
+      },
     });
     expect(w.net.telegram("createForumTopic")).toHaveLength(1);
   });
@@ -582,11 +588,27 @@ describe("comments on issues and pull requests", () => {
         .flat()
         .map((button: { text: string }) => button.text),
     ).toContain("✍️ Draft a reply");
+    // The notice answers the thing's new message there, with ⬇️ Show.
     expect(messages[3]).toMatchObject({
       text: `💬 <b>hubot</b> commented: <a href="${ISSUE}#issuecomment-99">#12 It breaks</a>`,
-      reply_markup: { inline_keyboard: [] },
+      reply_parameters: { message_id: 101, allow_sending_without_reply: true },
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "⬇️ Show", callback_data: `show:${(await thing(w)).id}` }],
+        ],
+      },
     });
-    expect(messages[3]).not.toHaveProperty("reply_parameters");
+    // Its old message went with the topic, and the topic that it left is renamed.
+    expect(
+      w.net.telegram("deleteMessage").map((call) => call.body.message_id),
+    ).toEqual([100]);
+    expect(w.net.telegram("editForumTopic").map((call) => call.body)).toEqual([
+      expect.objectContaining({
+        message_thread_id: 900,
+        name: "↪️ Moved: 🙋 demo#12 It breaks",
+      }),
+    ]);
+    expect(w.net.telegram("deleteForumTopic")).toHaveLength(0);
     expect(await thing(w)).toMatchObject({
       messageId: 101,
       comment: { id: 99, noticed: START },

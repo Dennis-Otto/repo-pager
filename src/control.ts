@@ -36,7 +36,12 @@ import {
 import { type Keyboard, REACTIONS, type Thread } from "./telegram.ts";
 import type { Texts } from "./texts.ts";
 import { learnTokens, tokensOf } from "./tokens.ts";
-import { postBelow, postInNewTopic, REPORT_COLOR } from "./topics.ts";
+import {
+  noticeBelow,
+  postBelow,
+  postInNewTopic,
+  REPORT_COLOR,
+} from "./topics.ts";
 import { checked, notesKey, translates } from "./translations.ts";
 import { MAX_DRAFT } from "./updates.ts";
 import { footer, type Usage, usageOf } from "./usage.ts";
@@ -691,7 +696,7 @@ export async function handleControl(
     // below its message, and the failure of a job that he needs no more says
     // nothing.
     if (message.type === "draft") {
-      await postBelow(
+      await noticeBelow(
         context,
         item,
         context.t("message.otherDraft", {

@@ -50,10 +50,11 @@ export const SUBREQUESTS = 50;
 /**
  * The most calls to the network that a thing takes in the schedule to come again
  * as a new message: a message into its topic, a new topic with its check, its
- * message and their fallbacks, the delete of its old message and the new name of
- * the topic.
+ * message and their fallbacks, the new name of the topic that it left, the delete
+ * of its old message with the edit that takes its buttons off when Telegram
+ * refuses the delete, and the new name of the topic.
  */
-export const SHOW_AGAIN = 8;
+export const SHOW_AGAIN = 10;
 
 /**
  * Whether a run of the schedule has the calls left for one more thing that comes
@@ -68,10 +69,12 @@ export function canShow(context: Context): boolean {
  * The most calls to the network that one change of the alarm takes: the
  * installation of the control repository and the page of the app, and for its
  * message an edit, a message into its topic, a new topic with its check, its
- * message and their fallbacks, the new name of the topic, and the notice of a
- * new entry below it.
+ * message and their fallbacks, the new name of the topic that it left, the delete
+ * of its old message there with the edit that takes its buttons off when Telegram
+ * refuses the delete, the new name of the topic, and the notice of a new entry
+ * below it.
  */
-export const ALARM_CHANGE = 11;
+export const ALARM_CHANGE = 14;
 
 /**
  * The calls that each page of every outcome leaves for the redeliveries and one

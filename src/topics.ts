@@ -11,8 +11,9 @@
  * as before topics; a refusal pauses new topics for a while, and an open thing that
  * waits in the main view moves into a topic of its own with its next change.
  */
-import { keyboard } from "./buttons.ts";
+import { keyboard, noticeKeyboard } from "./buttons.ts";
 import { cut } from "./content.ts";
+import { describe } from "./context.ts";
 import type { Context } from "./pager.ts";
 import { render, securityPage } from "./render.ts";
 import { type Item, isDone, type Kind, type Topic } from "./store.ts";
@@ -174,8 +175,10 @@ async function intoNewTopic(
 
 /**
  * Send a message of a thing that opens a new topic of the thing, named after it,
- * which the thing keeps. Returns the id of the message, or null when there is no
- * topic to be had, and the thing has none.
+ * which the thing keeps. A topic that the thing leaves so, one that Telegram
+ * doesn't find for a new message, is renamed ↪️ Moved (leftBehind()). Returns the
+ * id of the message, or null when there is no topic to be had, and the thing has
+ * none.
  */
 async function intoThingTopic(
   context: Context,
@@ -184,6 +187,8 @@ async function intoThingTopic(
   buttons: Keyboard,
   silent = false,
 ): Promise<number | null> {
+  // The topic that the thing leaves, which a failure below forgets.
+  const left = item.topic ?? null;
   const name = topicName(item, context.t);
   const sent = await intoNewTopic(
     context,
@@ -207,7 +212,34 @@ async function intoThingTopic(
   if (isDone(item)) {
     item.doneAt = context.now();
   }
+  if (left !== null && left.thread !== sent.thread) {
+    await leftBehind(context, left);
+  }
   return sent.message;
+}
+
+/**
+ * Rename a topic that a thing left for a new one ↪️ Moved, with its old name, so
+ * that it no longer looks open: one that Telegram didn't find for a new message,
+ * which is usually one that the maintainer deleted, but may be one that is still
+ * there. The pager never deletes it, which would take its history with it for good
+ * if it is; the maintainer deletes it by hand when he wants. One call and no write:
+ * a topic that is gone is passed over, and a refusal or a failure changes nothing
+ * else, since the thing goes on in its new topic.
+ */
+async function leftBehind(context: Context, topic: Topic): Promise<void> {
+  const name = cut(
+    context.t("topic.moved", { name: topic.name }),
+    MAX_TOPIC_NAME,
+  );
+  try {
+    // Usually the maintainer deleted it, which is no news for the log.
+    await context.telegram.renameTopic(topic.thread, name, false);
+  } catch (error) {
+    console.warn(
+      `Telegram renames no topic that a thing left: ${describe(error)}`,
+    );
+  }
 }
 
 /**
@@ -270,11 +302,15 @@ export async function moveIntoTopic(
 }
 
 /**
- * Take the old message of a thing that moved into its topic out of the main view:
- * delete it, or, since Telegram deletes no message older than 48 hours, show the
- * thing there as it is now, without its buttons, which its message in the topic has.
+ * Take the old message of a thing whose message went anew out of the chat, such as
+ * one in the main view that moved into its topic, one that ⏰ Later or ⬇️ Show sent
+ * again, or one in a topic that the thing left: delete it, or, since Telegram
+ * deletes no message older than 48 hours, show the thing there as it is now,
+ * without its buttons, which its new message has. So no two messages of a thing
+ * offer buttons. A message that is gone, such as with a deleted topic, counts as
+ * deleted.
  */
-export async function leaveMainView(
+export async function retire(
   context: Context,
   old: number,
   text: string,
@@ -297,13 +333,16 @@ export async function leaveMainView(
  * into the main view as a reply to its message when the thing has no topic and gets
  * none. When the maintainer deleted the topic, and the thing's message with it, the
  * thing opens a new one, as sendThing() does: its own message first, with its
- * buttons, and this one below it; the thing keeps the new topic and its new message.
+ * buttons, and this one below it; the thing keeps the new topic and its new message,
+ * and its old message goes (retire()): it counts as gone with a deleted topic, and
+ * loses its buttons in a topic that Telegram didn't find but that is still there.
  * So does a thing that waits in the main view for its topic, such as one whose topic
  * Telegram refused, whose message there is deleted once it moved; a chat without
  * topics, a pause of new topics, a topic that Telegram refuses, and a thing from
  * before topics keep the message below the thing's message in the main view.
- * A silent one notifies nobody; the thing's own message in a new topic does. Returns
- * where the message went, for an album that follows it.
+ * A silent one notifies nobody; the thing's own message in a new topic does. One
+ * that answers is a reply to the thing's message in its topic as well, as a notice
+ * is (noticeBelow()). Returns where the message went, for an album that follows it.
  */
 export async function postBelow(
   context: Context,
@@ -311,6 +350,7 @@ export async function postBelow(
   text: string,
   buttons: Keyboard = [],
   silent = false,
+  answers = false,
 ): Promise<Sent> {
   const topic = item.topic ?? null;
   if (topic !== null) {
@@ -319,6 +359,7 @@ export async function postBelow(
       buttons,
       topic.thread,
       silent,
+      answers ? item.messageId : null,
     );
     if (message !== null) {
       return { message, thread: topic.thread };
@@ -327,7 +368,9 @@ export async function postBelow(
     // A record from before topics stays in the main view.
     return context.telegram.post(text, buttons, null, item.messageId, silent);
   }
-  const waiting = topic === null ? item.messageId : null;
+  // The message that the thing's new one replaces: in the main view, or in the
+  // topic that Telegram didn't find.
+  const old = item.messageId;
   // The thing opens a new topic, as a new thing does, with its own message first.
   const own = render(item, context.now(), context.t);
   const ownButtons = keyboard(item, context.t);
@@ -336,19 +379,42 @@ export async function postBelow(
     // No topic to be had, and the thing's message is still there: below it.
     return context.telegram.post(text, buttons, null, item.messageId, silent);
   }
-  if (waiting !== null) {
-    // Its message moved out of the main view.
-    await leaveMainView(context, waiting, own);
-  }
   // Its topic went with its message, and without a new one both go into the main view.
   item.messageId = moved ?? (await context.telegram.send(own, ownButtons));
   await context.store.put(item);
+  if (old !== null) {
+    // Its message moved out of the main view, or out of the topic that it left.
+    await retire(context, old, own);
+  }
   return context.telegram.post(
     text,
     buttons,
     item.topic?.thread ?? null,
     item.messageId,
     silent,
+    answers,
+  );
+}
+
+/**
+ * Send a notice below the message of a thing, such as that of a new entry of an
+ * alarm or of a new comment, as postBelow() does: as a reply to the thing's
+ * message, in its topic too, and with ⬇️ Show, which sends that message anew at the
+ * end of its topic, for a message that is far above, that the maintainer deleted on
+ * his side only, or that is in a topic that the thing left.
+ */
+export function noticeBelow(
+  context: Context,
+  item: Item,
+  text: string,
+): Promise<Sent> {
+  return postBelow(
+    context,
+    item,
+    text,
+    noticeKeyboard(item, context.t),
+    false,
+    true,
   );
 }
 

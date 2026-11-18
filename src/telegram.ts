@@ -113,6 +113,21 @@ function threadNotFound(error: unknown): boolean {
  */
 const TOPIC_GONE = /message thread not found|TOPIC_ID_INVALID|TOPIC_DELETED/i;
 
+/**
+ * What makes a message a reply to another, or nothing without one: a message that
+ * is gone takes no quote, and the reply goes without it.
+ */
+function replyParameters(replyTo: number | null): object {
+  return replyTo === null
+    ? {}
+    : {
+        reply_parameters: {
+          message_id: replyTo,
+          allow_sending_without_reply: true,
+        },
+      };
+}
+
 interface Answer {
   ok?: boolean;
   error_code?: number;
@@ -230,32 +245,45 @@ export class Telegram {
     return (await this.post(text, keyboard, thread, replyTo, silent)).message;
   }
 
-  /** Send a message as send() does, and say where it went: into its thread, or the main view. */
+  /**
+   * Send a message as send() does, and say where it went: into its thread, or the
+   * main view. One that answers, such as the notice of a new comment, is a reply to
+   * replyTo in its thread as well.
+   */
   async post(
     text: string,
     keyboard: Keyboard,
     thread: Thread,
     replyTo: number | null,
     silent = false,
+    answers = false,
   ): Promise<Sent> {
-    return this.deliver(this.message(text, keyboard, silent), thread, replyTo);
+    return this.deliver(
+      this.message(text, keyboard, silent),
+      thread,
+      replyTo,
+      answers,
+    );
   }
 
   /**
    * Send a message as send() does, but into the thread alone: when Telegram
    * doesn't find the thread, nothing is sent, and it returns null. A silent one
-   * notifies nobody, such as a message that moves into its topic.
+   * notifies nobody, such as a message that moves into its topic; one with replyTo
+   * answers that message of the thread, such as the notice of a new comment.
    */
   async postInto(
     text: string,
     keyboard: Keyboard,
     thread: number,
     silent: boolean,
+    replyTo: number | null = null,
   ): Promise<number | null> {
     try {
       return await this.sendMessage({
         ...this.message(text, keyboard, silent),
         message_thread_id: thread,
+        ...replyParameters(replyTo),
       });
     } catch (error) {
       if (!threadNotFound(error)) {
@@ -280,23 +308,16 @@ export class Telegram {
   /**
    * Send a message into its thread, or into the main view, as a reply to replyTo
    * when one is given, when it has no thread or Telegram doesn't find it. In the
-   * thread, it needs no reply: the thread is what the message belongs to.
+   * thread, it needs no reply, the thread is what the message belongs to, unless
+   * it answers, such as a notice, which leads to its thing's message by the quote.
    */
   private async deliver(
     parameters: object,
     thread: Thread,
     replyTo: number | null,
+    answers: boolean,
   ): Promise<Sent> {
-    const main =
-      replyTo === null
-        ? parameters
-        : {
-            ...parameters,
-            reply_parameters: {
-              message_id: replyTo,
-              allow_sending_without_reply: true,
-            },
-          };
+    const main = { ...parameters, ...replyParameters(replyTo) };
     if (thread === null) {
       return { message: await this.sendMessage(main), thread: null };
     }
@@ -304,6 +325,7 @@ export class Telegram {
       const message = await this.sendMessage({
         ...parameters,
         message_thread_id: thread,
+        ...(answers ? replyParameters(replyTo) : {}),
       });
       return { message, thread };
     } catch (error) {
@@ -499,6 +521,7 @@ export class Telegram {
       },
       thread,
       replyTo,
+      false,
     );
     return sent.message;
   }
@@ -588,9 +611,14 @@ export class Telegram {
   /**
    * Rename a topic, such as with ✅ once its thing is done. Returns whether it has
    * the name now: a topic that is gone, or a refusal, keeps the old one, and the
-   * next change of its thing tries again.
+   * next change of its thing tries again. The log names why, except for a topic
+   * that is gone when the caller expects one, such as a topic that a thing left.
    */
-  async renameTopic(thread: number, name: string): Promise<boolean> {
+  async renameTopic(
+    thread: number,
+    name: string,
+    goneIsNews = true,
+  ): Promise<boolean> {
     try {
       await this.call("editForumTopic", {
         chat_id: this.chatId,
@@ -605,7 +633,9 @@ export class Telegram {
       if (error.description.includes("TOPIC_NOT_MODIFIED")) {
         return true;
       }
-      console.warn(`Telegram editForumTopic: ${error.description}`);
+      if (goneIsNews || !TOPIC_GONE.test(error.description)) {
+        console.warn(`Telegram editForumTopic: ${error.description}`);
+      }
       return false;
     }
   }
