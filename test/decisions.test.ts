@@ -2,9 +2,10 @@
 // repository forwards, signed: a question becomes a thing in a topic of its own with
 // its options as buttons, and a press saves the answer on the branch of the answers
 // of the control repository, where the agent reads it; a report is a message in a
-// topic of its own, which keeps nothing.
+// topic of its own with 🗑 Delete topic, which keeps a small record of that topic
+// and none of its text.
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   handleControl,
@@ -22,12 +23,14 @@ import {
   MAX_QUESTION,
 } from "../src/store.ts";
 import { TOPIC_COLORS } from "../src/telegram.ts";
+import { TOPIC_PAUSE } from "../src/topics.ts";
 import { handleUpdate } from "../src/updates.ts";
 import {
   CHAT,
   DELETE_TOPIC,
   json,
   type Net,
+  refused,
   START,
   type World,
   withControl,
@@ -665,7 +668,18 @@ describe("a question that its agent takes back", () => {
 });
 
 describe("the report of a run", () => {
-  it("opens a topic of its own, named after its title, without buttons", async () => {
+  /** The records of things in Workers KV, with their metadata and expiration. */
+  async function records() {
+    return (await env.PAGER.list({ prefix: "item:" })).keys;
+  }
+
+  /** The data of the button of the first message sent. */
+  function button(w: World): string {
+    return w.net.telegram("sendMessage")[0]?.body.reply_markup
+      .inline_keyboard[0][0].callback_data;
+  }
+
+  it("opens a topic of its own, named after its title, with 🗑 Delete topic", async () => {
     const w = await world();
     withTopics(w.net);
     const report = {
@@ -687,12 +701,46 @@ describe("the report of a run", () => {
     expect(message).toMatchObject({
       text: "🧾 <b>The report of a run</b>\nMerged: 3 &lt;pull requests&gt;",
       message_thread_id: 900,
-      reply_markup: { inline_keyboard: [] },
+      reply_markup: { inline_keyboard: DELETE_TOPIC },
     });
-    expect((await env.PAGER.list()).keys).toEqual([]);
+    // One record, whose id the button names, which expires and is due to go as a
+    // done thing is, and no link of its topic.
+    const id = button(w).slice("delete:".length);
+    expect(await records()).toEqual([
+      {
+        name: `item:${id}`,
+        expiration: expect.any(Number),
+        metadata: { done: START },
+      },
+    ]);
+    expect((await env.PAGER.list({ prefix: "topic:" })).keys).toEqual([]);
+    const raw = (await env.PAGER.get(`item:${id}`)) as string;
+    expect(JSON.parse(raw)).toEqual({
+      id,
+      kind: "report",
+      state: "done",
+      repo: "Dennis-Otto/control",
+      installation: 0,
+      messageId: 100,
+      note: null,
+      snoozedUntil: null,
+      topic: { thread: 900, name: "🧾 Run: Night run 2026-11-08" },
+      doneAt: START,
+    });
+    // Its text stays out of the store.
+    expect(raw).not.toContain("Merged");
+    expect(raw).not.toContain("pull requests");
   });
 
-  it("is named for a run without a title, and goes into the main view of a chat without topics", async () => {
+  it("takes a random id, so that two reports of the same title keep a record each", async () => {
+    const w = await world();
+    withTopics(w.net);
+    await send(w, { type: "report", title: "Night", text: "One." });
+    await send(w, { type: "report", title: "Night", text: "Two." });
+    expect(await records()).toHaveLength(2);
+  });
+
+  it("is named for a run without a title, and goes into the main view of a chat without topics, without a button or a record", async () => {
     const w = await world({ language: "de" });
     expect(await send(w, { type: "report", text: "Fertig." })).toEqual({
       status: 200,
@@ -701,12 +749,109 @@ describe("the report of a run", () => {
     const [message] = w.net.telegram("sendMessage").map((call) => call.body);
     expect(message.text).toBe("🧾 <b>Der Bericht eines Laufs</b>\nFertig.");
     expect(message.message_thread_id).toBeUndefined();
+    expect(message.reply_markup).toEqual({ inline_keyboard: [] });
+    expect((await env.PAGER.list()).keys).toEqual([]);
     const named = await world();
     withTopics(named.net);
     await send(named, { type: "report", text: "Done." });
     expect(
       named.net.telegram("createForumTopic").map((call) => call.body.name),
     ).toEqual(["🧾 Run"]);
+  });
+
+  it("goes into the main view without a button or a record while new topics pause, and when Telegram refuses its topic", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const paused = await world();
+    withTopics(paused.net);
+    await paused.context.store.pauseTopics({
+      until: START + TOPIC_PAUSE,
+      length: TOPIC_PAUSE,
+    });
+    await send(paused, { type: "report", text: "Done." });
+    expect(paused.net.telegram("createForumTopic")).toEqual([]);
+    expect(paused.net.telegram("sendMessage")[0]?.body).toMatchObject({
+      reply_markup: { inline_keyboard: [] },
+    });
+    expect(await records()).toEqual([]);
+    const refusing = await world();
+    withTopics(refusing.net).on("POST", /\/createForumTopic$/, () =>
+      refused("Bad Request: CHAT_NOT_FORUM"),
+    );
+    await send(refusing, { type: "report", text: "Done." });
+    expect(refusing.net.telegram("createForumTopic")).toHaveLength(1);
+    const [message] = refusing.net
+      .telegram("sendMessage")
+      .map((call) => call.body);
+    expect(message.message_thread_id).toBeUndefined();
+    expect(message.reply_markup).toEqual({ inline_keyboard: [] });
+    // The pause that the refusal starts is the one key, as before.
+    expect(await records()).toEqual([]);
+    warn.mockRestore();
+  });
+
+  it("answers reported when its record fails to be written after it went, and the log names neither its text nor its title", async () => {
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const w = await world();
+    withTopics(w.net);
+    const put = vi
+      .spyOn(w.context.store, "put")
+      .mockRejectedValue(new Error("KV put failed"));
+    expect(
+      await send(w, { type: "report", title: "Secret plans", text: "Hush." }),
+    ).toEqual({ status: 200, text: "reported" });
+    expect(w.net.telegram("sendMessage")).toHaveLength(1);
+    expect(error.mock.calls).toEqual([
+      ["The record of a report in topic 900 was not kept: Error"],
+    ]);
+    put.mockRestore();
+    error.mockRestore();
+  });
+
+  it("deletes its topic and its record at a press of 🗑, and a second press finds it gone", async () => {
+    const w = await world();
+    withTopics(w.net);
+    await send(w, { type: "report", title: "Night", text: "Done." });
+    const data = button(w);
+    await press(w, data);
+    expect(w.net.telegram("deleteForumTopic").map((call) => call.body)).toEqual(
+      [{ chat_id: CHAT, message_thread_id: 900 }],
+    );
+    expect(await records()).toEqual([]);
+    // The message of the button went with its topic: nothing to clear.
+    expect(w.net.telegram("editMessageReplyMarkup")).toEqual([]);
+    await press(w, data);
+    expect(answered(w)).toEqual([
+      { text: "Topic deleted.", alert: false },
+      { text: "This thing is gone.", alert: true },
+    ]);
+    expect(w.net.telegram("deleteForumTopic")).toHaveLength(1);
+  });
+
+  it("keeps its record when Telegram refuses to delete its topic, and says so", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const w = await world();
+    withTopics(w.net).on("POST", /\/deleteForumTopic$/, () =>
+      json({ ok: false, error_code: 500, description: "Internal" }, 500),
+    );
+    await send(w, { type: "report", text: "Done." });
+    const before = await records();
+    await press(w, button(w));
+    expect(answered(w)).toEqual([
+      {
+        text: "😢 Telegram didn't delete the topic. Try again later.",
+        alert: true,
+      },
+    ]);
+    expect(await records()).toEqual(before);
+    warn.mockRestore();
+  });
+
+  it("answers that a report is gone whose record is missing", async () => {
+    const w = await world();
+    await press(w, `delete:${await itemId(keys.report("lost"))}`);
+    expect(answered(w)).toEqual([{ text: "This thing is gone.", alert: true }]);
   });
 
   it("takes a text and a short title, and nothing else", async () => {

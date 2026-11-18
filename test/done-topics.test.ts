@@ -2,15 +2,19 @@
 // it at one press, and where the instance sets DONE_TOPIC_HOURS, the schedule does
 // so once they are over, with its own run, while every topic that is still open
 // stays. A thing whose topic went shows nothing while it stays done, and opens a
-// new topic once it opens again.
+// new topic once it opens again. The topic of a report of a run goes the same way,
+// and its record with it.
 import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
 import { keyboard } from "../src/buttons.ts";
+import { handleControl } from "../src/control.ts";
+import { hmacHex } from "../src/crypto.ts";
 import { SUBREQUESTS } from "../src/deliveries.ts";
 import { DUE, type Due } from "../src/due.ts";
 import { open } from "../src/open.ts";
 import { apply, show } from "../src/pager.ts";
+import { render } from "../src/render.ts";
 import type { Signal } from "../src/rules.ts";
 import { CLEAR_FOR, MAX_CLEARS, runSchedule } from "../src/schedule.ts";
 import type { Settings } from "../src/settings.ts";
@@ -31,7 +35,7 @@ import {
 } from "../src/sweep.ts";
 import { Telegram } from "../src/telegram.ts";
 import { texts } from "../src/texts.ts";
-import { postBelow } from "../src/topics.ts";
+import { postBelow, retitle, topicName } from "../src/topics.ts";
 import { handleUpdate } from "../src/updates.ts";
 import {
   CHAT,
@@ -473,6 +477,137 @@ describe("DONE_TOPIC_HOURS", () => {
       expect(after.messageId).toBe(done.messageId);
     }
     expect(deleted(w)).toEqual([]);
+  });
+});
+
+describe("the topic of a report of a run", () => {
+  /** Send a report as the control repository does, signed. */
+  async function report(w: World, title = "Night"): Promise<string> {
+    const body = JSON.stringify({ type: "report", title, text: "Done." });
+    const stamp = String(w.clock.now / 1000);
+    const response = await handleControl(
+      w.context,
+      new Request("https://pager.example/control", {
+        method: "POST",
+        headers: {
+          "x-pager-timestamp": stamp,
+          "x-pager-signature": `sha256=${await hmacHex("control-secret", `${stamp}.${body}`)}`,
+        },
+        body,
+      }),
+    );
+    expect(await response.text()).toBe("reported");
+    const data: string = w.net.telegram("sendMessage").at(-1)?.body.reply_markup
+      .inline_keyboard[0][0].callback_data;
+    return data.slice("delete:".length);
+  }
+
+  it("goes with the first run after DONE_TOPIC_HOURS, and not before, with its record", async () => {
+    const w = await chat({ doneTopicHours: 24 });
+    const id = await report(w);
+    // The schedule notes when it is due, so that the runs before cost no list.
+    await runSchedule(w.context);
+    expect((await w.context.local.get<Due>(DUE))?.next).toBe(START + 24 * HOUR);
+    w.clock.now = START + 24 * HOUR - 15 * 60_000;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([]);
+    expect(await w.context.store.get(id)).not.toBeNull();
+    w.clock.now = START + 24 * HOUR;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([900]);
+    expect(await w.context.store.get(id)).toBeNull();
+    expect((await env.PAGER.list({ prefix: "item:" })).keys).toEqual([]);
+    w.clock.now += 15 * 60_000;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([900]);
+  });
+
+  it("goes with the next run at 0", async () => {
+    const w = await chat({ doneTopicHours: 0 });
+    const id = await report(w);
+    w.clock.now += 15 * 60_000;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([900]);
+    expect(await w.context.store.get(id)).toBeNull();
+  });
+
+  it("counts a topic that the maintainer deleted by hand as deleted, and its record goes", async () => {
+    const w = await chat({ doneTopicHours: 0 });
+    const id = await report(w);
+    refusing(w.net, 400, "Bad Request: TOPIC_ID_INVALID");
+    w.clock.now += 15 * 60_000;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([900]);
+    expect(await w.context.store.get(id)).toBeNull();
+  });
+
+  it("tries a topic that Telegram refuses to delete for a day, then keeps it with its 🗑 and no done mark", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const w = await chat({ doneTopicHours: 0 });
+    const id = await report(w);
+    refusing(w.net, 500, "Internal Server Error");
+    w.clock.now += 15 * 60_000;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([900]);
+    w.clock.now = START + CLEAR_FOR;
+    await runSchedule(w.context);
+    expect(warn).toHaveBeenCalledWith(
+      "Telegram refused to delete topic 900 for a day; it stays",
+    );
+    const kept = await w.context.store.get(id);
+    expect(kept).toMatchObject({ kind: "report", topic: { thread: 900 } });
+    expect(kept).not.toHaveProperty("doneAt");
+    expect(keyboard(kept as Item, w.context.t)).toEqual(DELETE_TOPIC);
+    const [key] = (await env.PAGER.list({ prefix: "item:" })).keys;
+    expect(key?.metadata).toBeUndefined();
+    const tries = deleted(w).length;
+    w.clock.now += 15 * 60_000;
+    await runSchedule(w.context);
+    expect(deleted(w)).toHaveLength(tries);
+    warn.mockRestore();
+  });
+
+  it("stays without the setting, with its 🗑, and the schedule stays idle", async () => {
+    const w = await chat();
+    const id = await report(w);
+    await runSchedule(w.context);
+    expect((await w.context.local.get<Due>(DUE))?.next).toBeNull();
+    w.clock.now = START + 400 * HOUR;
+    await runSchedule(w.context);
+    expect(deleted(w)).toEqual([]);
+    expect(await w.context.store.get(id)).toMatchObject({
+      topic: { thread: 900 },
+    });
+  });
+
+  it("keeps the name that its topic opened with, without ✅, and is never renamed", async () => {
+    const w = await chat({ doneTopicHours: 24 });
+    const id = await report(w, "Night run");
+    const item = (await w.context.store.get(id)) as Item;
+    expect(topicName(item, w.context.t)).toBe("🧾 Run: Night run");
+    await retitle(w.context, item);
+    expect(w.net.telegram("editForumTopic")).toEqual([]);
+    expect(item).not.toHaveProperty("renameRefused");
+  });
+
+  it("is named as a run without its topic, and has no message of its own to show", async () => {
+    const w = await chat();
+    const id = await report(w);
+    const item = (await w.context.store.get(id)) as Item;
+    const { t } = w.context;
+    expect(topicName({ ...item, topic: null }, t)).toBe("🧾 Run");
+    // Nothing shows it: its message went with the report, whose text it keeps none of.
+    expect(render(item, START, t)).toBe(`
+${t("state.done")}`);
+  });
+
+  it("isn't what /open lists, and costs it no read", async () => {
+    const w = await chat({ doneTopicHours: 24 });
+    await report(w);
+    const get = vi.spyOn(w.context.store, "get");
+    expect(await open(w.context)).toBe(w.context.t("open.none"));
+    expect(get).not.toHaveBeenCalled();
+    get.mockRestore();
   });
 });
 

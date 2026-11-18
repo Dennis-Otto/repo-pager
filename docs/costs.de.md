@@ -44,6 +44,13 @@ Ein Lauf des Zeitplans, alle 15 Minuten, ist eine Anfrage an den Worker und an d
 
 Das Thema einer Sache, die erledigt ist, geht in einem solchen Lauf, sobald die Stunden von `DONE_TOPIC_HOURS` um sind, und kostet keine eigene Anfrage: Das Schreiben, das die Sache erledigt, notiert in den Metadaten ihres Eintrags, wann, sodass die Notiz, was fällig ist, die Auflistung nur weckt, wenn ein Thema fällig ist, und jedes gelöschte Thema kostet ein Lesen und ein Schreiben von Workers KV und einen Aufruf von Telegram, höchstens zehn Sachen pro Lauf; ein Thema einer Version vor einem Release kostet einen Aufruf mehr und teilt das Schreiben des Release. Ein Druck auf 🗑 Thema löschen ist eine Anfrage an den Worker und an das Durable Object, wie jeder Druck, mit demselben Lesen und Schreiben.
 
+Ein Bericht eines Laufs in seinem Thema kommt mit 🗑 Thema löschen und einem kleinen Eintrag ([Entscheidung 0035](decisions/0035-the-topic-of-a-report-goes-like-the-topic-of-a-done-thing.md)):
+
+- **Sein Versand** ist eine Anfrage an den Worker und an das Durable Object, mit dem Lesen der Pause neuer Themen, einem Schreiben seines Eintrags und den Aufrufen von Telegram `getMe`, `createForumTopic` und `sendMessage`. Wo `DONE_TOPIC_HOURS` gesetzt ist, schreibt er eine Zeile im Speicher des Durable Objects, für die Notiz, was fällig ist.
+- **In der Hauptansicht** kostet er, was er vorher kostete: nichts von Workers KV in einem Chat ohne Themen.
+- **Sein Thema geht** in einem Lauf, den schlimmstenfalls er allein weckt, mit einer Auflistung, dem Lesen der Texte, die warten, und seines Eintrags, einem Löschen von Workers KV statt eines Schreibens, da ein Bericht sich nie wieder öffnet, und einem `deleteForumTopic`. Der Lauf danach listet noch einmal auf und liest die Texte, die warten, wie nach dem Thema jeder erledigten Sache, und jeder der beiden schreibt eine Zeile der Notiz.
+- **Ein Druck auf 🗑** kostet ein Lesen, ein Löschen und die Aufrufe `deleteForumTopic` und `answerCallbackQuery`.
+
 Ein Hinweis unter der Nachricht einer Sache, etwa *🚨 Neu in diesem Alarm* oder ein neuer Kommentar, antwortet auf diese Nachricht und trägt ⬇️ Zeigen ([Entscheidung 0034](decisions/0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md)) und kostet dafür nichts mehr: dasselbe eine `sendMessage`, ohne Lesen, Schreiben oder Auflisten von Workers KV und ohne eigene Anfrage. Ein Druck auf ⬇️ Zeigen ist eine Anfrage an den Worker und an das Durable Object, wie jeder Druck, mit einem Lesen und einem Schreiben von Workers KV und den Aufrufen von Telegram `answerCallbackQuery`, `sendMessage`, `deleteMessage` und `editMessageReplyMarkup` für den Hinweis; ein abgelehnter Druck, auf eine erledigte Sache, kostet ein Lesen und kein Schreiben. Löscht Telegram die alte Nachricht nicht mehr, wie eine, die älter als 48 Stunden ist, nimmt ein `editMessageText` ihr die Knöpfe, bei jeder neuen Nachricht einer Sache, und eine Sache, die ein Thema verlässt, das Telegram nicht findet, benennt es mit einem `editForumTopic` um, ohne Lesen oder Schreiben. Nichts am vollen Tag unten drückt einen Knopf oder verlässt ein Thema, also kostet er, was er kostete.
 
 ## Ein voller Tag
@@ -55,10 +62,10 @@ Am 2026-11-16 liefen in den zehn Repositorys des Maintainers 11.746 Läufe von G
 | Zustellungen, Anfragen an den Worker | etwa 160.000 | etwa 13.200 |
 | Anfragen an das Durable Object | etwa 160.000 | etwa 7.900 |
 | Lesezugriffe auf Workers KV | Tausende, einer pro grünem Job auf `main` | etwa 6.800 |
-| Auflistungen von Workers KV | 96 | höchstens 4, solange nichts fällig ist |
+| Auflistungen von Workers KV | 96 | höchstens 24: 4, solange nichts fällig ist, und zwei für jeden von zehn Berichten von Läufen, deren Thema geht |
 | Ereignisse von Workers Logs | etwa 320.000 | keine, solange nichts scheitert, etwa 23.600, sollte jede Zustellung scheitern, die etwas bedeutet |
 
-Das ist unter einem Drittel jedes Limits. Der vollste Tag dieser Woche, 2026-11-13, hatte 36.380 Läufe: etwa 41.000 Anfragen an den Worker, noch unter der Hälfte jedes Limits.
+Der Tag nimmt zehn Berichte von Läufen, jeden in seinem Thema, das in einem eigenen Lauf des Zeitplans geht: Mit ihnen schreibt er 28-mal in Workers KV, löscht 10 Einträge und schreibt 222 Zeilen im Speicher des Durable Objects. Die Schreibvorgänge sind das engste Limit: Jeder Bericht ist ein Schreiben, also lässt ein Tag des Durchgangs durch die alten Themen unten Platz für etwa 27 Berichte, und ein Tag ohne ihn für etwa 300. Das ist unter einem Drittel jedes Limits. Der vollste Tag dieser Woche, 2026-11-13, hatte 36.380 Läufe: etwa 41.000 Anfragen an den Worker, noch unter der Hälfte jedes Limits.
 
 Workers Logs behält ein Ereignis für jede Zeile, die der Worker oder das Durable Object schreibt, und von sich aus eines mehr für jede Anfrage an einen von beiden, ihr Aufruf-Log. Der Pager schreibt nur eine Zeile, wenn etwas scheitert, und `wrangler.jsonc` schaltet die Aufruf-Logs ab, sodass ein Tag, an dem nichts scheitert, gar kein Ereignis schreibt; mit ihnen schrieb der volle Tag etwa 21.100. Sollte jede Zustellung, die etwas bedeutet, den ganzen Tag scheitern, in jedem ihrer drei Versuche, etwa solange GitHub ausfällt, schreibt der Tag etwa 23.600 Ereignisse, unter einem Drittel der 200.000, und bei großzügigen 4 KB pro Ereignis etwa 97 MB, unter einem Drittel der 0,5 GB, die Cloudflare ab 2026-12-01 zählt. Auch am vollsten Tag der Woche bliebe jede Zeile erhalten. `test/costs.test.ts` hält beides fest.
 
@@ -70,11 +77,11 @@ Die Themen, die vor 0.11.0 erledigt waren, gehen einmal, mit einem Durchgang des
 
 | Jeder Lauf, höchstens | Ein Tag, höchstens | Mit dem vollen Tag |
 | --- | --- | --- |
-| 1 Auflistung von 20 Verknüpfungen | 96 Auflistungen | 100 von 1.000 Auflistungen |
-| 40 Lesevorgänge, die Sache jeder Verknüpfung und ihr Eintrag | 3.840 Lesevorgänge | 10.615 von 100.000 Lesevorgängen |
-| 3 Schreibvorgänge, einer für jede Sache, deren Thema ging | 288 Schreibvorgänge | 306 von 1.000 Schreibvorgängen |
+| 1 Auflistung von 20 Verknüpfungen | 96 Auflistungen | 120 von 1.000 Auflistungen |
+| 40 Lesevorgänge, die Sache jeder Verknüpfung und ihr Eintrag | 3.840 Lesevorgänge | 10.655 von 100.000 Lesevorgängen |
+| 3 Schreibvorgänge, einer für jede Sache, deren Thema ging | 288 Schreibvorgänge | 316 von 1.000 Schreibvorgängen |
 | 10 Aufrufe von `deleteForumTopic` bei Telegram | 960 Löschungen | kein Limit von Cloudflare |
-| 1 Zeile im Speicher des Durable Objects, wo er steht | 96 Zeilen | 288 von 100.000 Zeilen |
+| 1 Zeile im Speicher des Durable Objects, wo er steht | 96 Zeilen | 318 von 100.000 Zeilen |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-sweep-of-the-old-topics.de.dark.svg">

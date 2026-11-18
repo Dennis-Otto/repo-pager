@@ -852,6 +852,126 @@ describe("a notice and its button ⬇️ Show", () => {
   });
 });
 
+/** Send a body of the control repository, signed, and return what it cost. */
+async function controlled(value: object, status = 200): Promise<Cost> {
+  const environment = await counted();
+  const body = JSON.stringify(value);
+  const stamp = String(Math.floor(clock.now / 1000));
+  cost = nothing();
+  cost.requests += 1;
+  const before = lines();
+  const response = await worker.fetch(
+    new Request("https://pager.example/control", {
+      method: "POST",
+      headers: {
+        "x-pager-timestamp": stamp,
+        "x-pager-signature": `sha256=${await hmacHex("control-secret", `${stamp}.${body}`)}`,
+      },
+      body,
+    }) as Request<unknown, IncomingRequestCfProperties>,
+    environment,
+  );
+  expect(response.status).toBe(status);
+  logged(before);
+  return cost;
+}
+
+/**
+ * What a report of a run in its topic costs, with 🗑 Delete topic: its post, with
+ * the pause of new topics read and its record written, and the row of the note of
+ * what is due that its hours lower; and what the run of the schedule that deletes
+ * its topic once they are over costs beyond a run with nothing due: the list, the
+ * texts that wait, the record and its delete, with one call of Telegram, and the
+ * list and the texts that wait of the next run, which lists once more, as after
+ * the topic of any done thing, with a row of the note of each.
+ */
+const REPORT: { posted: Cost; cleared: Cost } = {
+  posted: {
+    ...nothing(),
+    requests: 1,
+    objects: 1,
+    kvReads: 1,
+    kvWrites: 1,
+    rowsWritten: 1,
+  },
+  cleared: {
+    ...nothing(),
+    kvReads: 3,
+    kvDeletes: 1,
+    kvLists: 2,
+    rowsWritten: 2,
+  },
+};
+
+describe("the report of a run", () => {
+  const QUARTER = 15 * 60_000;
+  const REPORTED = { type: "report", title: "Night", text: "Done." };
+  // Once the sweep of the topics done before this version is through.
+  beforeEach(async () => {
+    await local.put<Sweep>(SWEEP, {
+      first: START,
+      start: START,
+      deleted: 0,
+      ended: START,
+    });
+  });
+  /** The methods of Telegram that the pager called, in order. */
+  const methods = () =>
+    net.calls
+      .filter((call) => call.url.startsWith("https://api.telegram.org/"))
+      .map((call) => call.url.slice(call.url.lastIndexOf("/") + 1));
+
+  it("costs one read and one write of Workers KV in its topic, and three calls of Telegram", async () => {
+    // The note of what is due, which the first run makes.
+    await scheduled();
+    net.calls = [];
+    expect(await controlled(REPORTED)).toEqual(REPORT.posted);
+    expect(methods()).toEqual(["getMe", "createForumTopic", "sendMessage"]);
+  });
+
+  it("costs nothing of Workers KV in the main view of a chat without topics, as before", async () => {
+    net = new Net();
+    expect(await controlled(REPORTED)).toEqual({
+      ...nothing(),
+      requests: 1,
+      objects: 1,
+    });
+    expect(methods()).toEqual(["getMe", "sendMessage"]);
+  });
+
+  it("deletes its topic in the run that is due, at one list, two reads, one delete and one call, and the next run lists once more", async () => {
+    const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
+    await scheduled();
+    await controlled(REPORTED);
+    const due = START + hours * 4 * QUARTER;
+    clock.now = due - QUARTER;
+    await scheduled();
+    clock.now = due;
+    net.calls = [];
+    const run = await scheduled();
+    expect(methods()).toEqual(["deleteForumTopic"]);
+    expect((await env.PAGER.list({ prefix: "item:" })).keys).toEqual([]);
+    // The next run lists once more, since the list of the run before still named
+    // the report, and finds nothing due; the runs after it are idle.
+    clock.now += QUARTER;
+    const again = await scheduled();
+    expect(again).toMatchObject({ kvLists: 1, kvDeletes: 0, kvWrites: 0 });
+    clock.now += QUARTER;
+    const idle = await scheduled();
+    expect(idle).toEqual({
+      ...nothing(),
+      requests: 1,
+      objects: 1,
+      rowsWritten: 2,
+    });
+    const extra = nothing();
+    for (const limit of Object.keys(extra) as (keyof Cost)[]) {
+      extra[limit] = run[limit] + again[limit] - 2 * idle[limit];
+    }
+    expect(extra).toEqual(REPORT.cleared);
+  });
+});
+
 describe("the note of what is due", () => {
   it("takes the earlier of two moments, either of which may be none", () => {
     expect(earlier(null, null)).toBeNull();
@@ -908,6 +1028,11 @@ const DAY = {
   },
   /** The runs of the schedule, every 15 minutes. */
   schedules: 96,
+  /**
+   * The reports of runs of the maintainer's own agents, such as those of a night,
+   * each in a topic of its own, which goes in a run of the schedule of its own.
+   */
+  reports: 10,
 };
 
 /** The busiest day of that week, 2026-11-13, with 36,380 runs. */
@@ -933,6 +1058,8 @@ describe("a busy day of a fleet", () => {
     clock.now += 15 * 60_000;
     add(await scheduled(), DAY.schedules);
     add({ ...nothing(), kvLists: 1, kvReads: 1 }, (24 * 60 * 60_000) / SAFETY);
+    add(REPORT.posted, DAY.reports);
+    add(REPORT.cleared, DAY.reports);
     return total;
   }
 
@@ -945,13 +1072,13 @@ describe("a busy day of a fleet", () => {
     const total = await day();
     // The numbers of docs/costs.md.
     expect(total).toEqual({
-      requests: 13_232,
-      objects: 7_903,
-      kvReads: 6_775,
-      kvWrites: 18,
-      kvDeletes: 0,
-      kvLists: 4,
-      rowsWritten: 192,
+      requests: 13_242,
+      objects: 7_913,
+      kvReads: 6_815,
+      kvWrites: 28,
+      kvDeletes: 10,
+      kvLists: 24,
+      rowsWritten: 222,
       // A day on which nothing fails logs nothing: 21,135 events, before
       // wrangler.jsonc turned off the logs of the invocations.
       logs: 0,

@@ -155,6 +155,9 @@ function actionsOf(item: Item): Action[] {
     case "decision":
       // An agent waits for the answer: it takes no "Later" and no "Ignore".
       return item.state === "open" ? ["choose"] : [];
+    case "report":
+      // Done from the start: 🗑 Delete topic is all that it offers, in its topic.
+      return [];
   }
 }
 

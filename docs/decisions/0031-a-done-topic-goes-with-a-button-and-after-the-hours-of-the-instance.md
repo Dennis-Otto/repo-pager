@@ -1,6 +1,6 @@
 # A done topic goes with a button, and after the hours of the instance
 
-- Status: accepted, amends [0005](0005-one-topic-per-thing-kept-when-done.md), amended by [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md)
+- Status: accepted, amends [0005](0005-one-topic-per-thing-kept-when-done.md), amended by [0033](0033-the-topics-done-before-a-version-go-once-by-their-links.md) and [0035](0035-the-topic-of-a-report-goes-like-the-topic-of-a-done-thing.md)
 - Date: 2026-11-17
 
 ## Context

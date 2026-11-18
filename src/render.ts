@@ -458,6 +458,9 @@ function body(item: Item, t: Texts, room: number): string {
       return `🔔 ${html(item.text, 1000)}`;
     case "decision":
       return decisionText(item, t);
+    case "report":
+      // Never shown: its message went out with the report, whose text it keeps none of.
+      return "";
   }
 }
 

@@ -44,6 +44,13 @@ A run of the schedule, every 15 minutes, is a request of the Worker and of the D
 
 The topic of a thing that is done goes in such a run, once the hours of `DONE_TOPIC_HOURS` are over, and costs no request of its own: the write that makes the thing done notes when, in the metadata of its record, so the note of what is due wakes the list only when a topic is due, and each deleted topic costs one read and one write of Workers KV and one call of Telegram, ten things per run at most; a topic of a version before a release costs one more call and shares the write of the release. A press of 🗑 Delete topic is a request of the Worker and of the Durable Object, like any press, with the same read and write.
 
+A report of a run in its topic comes with 🗑 Delete topic and a small record ([decision 0035](decisions/0035-the-topic-of-a-report-goes-like-the-topic-of-a-done-thing.md)):
+
+- **Its post** is a request of the Worker and of the Durable Object, with the read of the pause of new topics, one write of its record and the calls of Telegram `getMe`, `createForumTopic` and `sendMessage`. Where `DONE_TOPIC_HOURS` is set, it writes one row of the storage of the Durable Object, for the note of what is due.
+- **In the main view** it costs what it cost before: nothing of Workers KV in a chat without topics.
+- **Its topic goes** in a run that it alone wakes, at worst, with one list, the read of the texts that wait and of its record, one delete of Workers KV in place of a write, since a report never opens again, and one `deleteForumTopic`. The run after it lists once more and reads the texts that wait, as after the topic of any done thing, and each of the two writes a row of the note.
+- **A press of 🗑** costs one read, one delete and the calls `deleteForumTopic` and `answerCallbackQuery`.
+
 A notice below a thing's message, such as *🚨 New in this alarm* or a new comment, answers that message and carries ⬇️ Show ([decision 0034](decisions/0034-a-notice-answers-its-thing-and-brings-its-message-back-with-a-button.md)), and costs nothing more for it: the same one `sendMessage`, with no read, write or list of Workers KV and no request of its own. A press of ⬇️ Show is a request of the Worker and of the Durable Object, like any press, with one read and one write of Workers KV, and the calls of Telegram `answerCallbackQuery`, `sendMessage`, `deleteMessage` and `editMessageReplyMarkup` for the notice; a press that is refused, on a thing that is done, costs one read and no write. When Telegram deletes the old message no more, as for one older than 48 hours, one `editMessageText` takes its buttons off, for every new message of a thing, and a thing that leaves a topic that Telegram doesn't find renames it with one `editForumTopic`, without a read or a write. Nothing of the busy day below presses a button or leaves a topic, so it costs what it cost.
 
 ## A busy day
@@ -55,10 +62,10 @@ On 2026-11-16, the ten repositories of the maintainer ran 11,746 runs of GitHub 
 | Deliveries, requests of the Worker | about 160,000 | about 13,200 |
 | Requests of the Durable Object | about 160,000 | about 7,900 |
 | Reads of Workers KV | thousands, one per pass of a job on `main` | about 6,800 |
-| Lists of Workers KV | 96 | at most 4 while nothing is due |
+| Lists of Workers KV | 96 | at most 24: 4 while nothing is due, and two for each of ten reports of runs whose topic goes |
 | Events of Workers Logs | about 320,000 | none while nothing fails, about 23,600 should every delivery that means something fail |
 
-That is below a third of each limit. The busiest day of that week, 2026-11-13, ran 36,380 runs: about 41,000 requests of the Worker, still below half of each limit.
+The day takes ten reports of runs, each in its topic, which goes in a run of the schedule of its own: with them, it writes 28 times to Workers KV, deletes 10 records and writes 222 rows of the storage of the Durable Object. The writes are the tightest limit: each report is one write, so a day of the sweep of the old topics below leaves room for about 27 reports, and a day without it for about 300. That is below a third of each limit. The busiest day of that week, 2026-11-13, ran 36,380 runs: about 41,000 requests of the Worker, still below half of each limit.
 
 Workers Logs keeps an event for each line that the Worker or the Durable Object logs, and by default one more for each request of either, its invocation log. The pager logs a line only when something fails, and `wrangler.jsonc` turns the invocation logs off, so a day on which nothing fails writes no event at all; with them, the busy day wrote about 21,100. Should every delivery that means something fail all day, in each of its three attempts, such as while GitHub is down, the day writes about 23,600 events, below a third of the 200,000, and at a generous 4 KB an event about 97 MB, below a third of the 0.5 GB that Cloudflare counts from 2026-12-01. On the busiest day of the week, every line would still be kept. `test/costs.test.ts` holds both.
 
@@ -70,11 +77,11 @@ The topics that were done before 0.11.0 go once, by a sweep of the schedule thro
 
 | Each run, at most | A day, at most | With the busy day |
 | --- | --- | --- |
-| 1 list of 20 links | 96 lists | 100 of 1,000 lists |
-| 40 reads, the thing of each link and its record | 3,840 reads | 10,615 of 100,000 reads |
-| 3 writes, one for each thing whose topic went | 288 writes | 306 of 1,000 writes |
+| 1 list of 20 links | 96 lists | 120 of 1,000 lists |
+| 40 reads, the thing of each link and its record | 3,840 reads | 10,655 of 100,000 reads |
+| 3 writes, one for each thing whose topic went | 288 writes | 316 of 1,000 writes |
 | 10 calls of Telegram's `deleteForumTopic` | 960 deletions | no limit of Cloudflare |
-| 1 row of the storage of the Durable Object, where it stands | 96 rows | 288 of 100,000 rows |
+| 1 row of the storage of the Durable Object, where it stands | 96 rows | 318 of 100,000 rows |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/diagrams/the-sweep-of-the-old-topics.dark.svg">

@@ -11,11 +11,17 @@
 import { allowed } from "./buttons.ts";
 import type { Context } from "./pager.ts";
 import { html, link, MAX_MESSAGE, securityPage, visible } from "./render.ts";
-import { type Item, isDone } from "./store.ts";
+import { type Item, isDone, type Report } from "./store.ts";
 import { topicName } from "./topics.ts";
 
+/**
+ * A thing that may wait for the maintainer: any but a report of a run, which is
+ * done from the start, so the list never holds one.
+ */
+type Waiting = Exclude<Item, Report>;
+
 /** The page of a thing on GitHub, or null for one that has none, such as a reminder. */
-function page(item: Item): string | null {
+function page(item: Waiting): string | null {
   switch (item.kind) {
     case "alarm":
       return `https://github.com/${item.repo}/actions`;
@@ -30,7 +36,7 @@ function page(item: Item): string | null {
 }
 
 /** The line of a thing: its name as its topic says it, linked, and when Later brings it back. */
-function line(context: Context, item: Item): string {
+function line(context: Context, item: Waiting): string {
   const name = topicName(item, context.t);
   const url = page(item);
   const thing = url === null ? html(name) : link(name, url);
@@ -41,7 +47,7 @@ function line(context: Context, item: Item): string {
 }
 
 /** The things that still wait for the maintainer: open, and with a button. */
-async function waiting(context: Context): Promise<Item[]> {
+async function waiting(context: Context): Promise<Waiting[]> {
   const ids = await context.store.unclosed();
   const items = await Promise.all(ids.map((id) => context.store.get(id)));
   // The list may lag behind a write: only the record says whether it is open. A
@@ -51,7 +57,8 @@ async function waiting(context: Context): Promise<Item[]> {
   // reason to wait.
   return items
     .filter(
-      (item): item is Item =>
+      // A thing that isn't done is no report.
+      (item): item is Waiting =>
         item !== null && !isDone(item) && allowed(item).length > 0,
     )
     .sort(
