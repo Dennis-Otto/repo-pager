@@ -9,11 +9,10 @@ requests when there is none.
 
 ## [0.13.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.12.0...v0.13.0) (2026-11-19)
 
-
 ### Features
 
-* a notice answers its thing and brings its message back with ⬇️ Show ([#263](https://github.com/Dennis-Otto/repo-pager/issues/263)) ([b47cee7](https://github.com/Dennis-Otto/repo-pager/commit/b47cee751bd9b4c7f39b1294426c19b435fdd623))
-* the topic of a report of a run goes with 🗑 Delete topic and after the hours of the instance ([#265](https://github.com/Dennis-Otto/repo-pager/issues/265)) ([d4b33a7](https://github.com/Dennis-Otto/repo-pager/commit/d4b33a76fc74aabc9e08db8d46290ceb96d0d3b9))
+- A notice in a topic, such as *🚨 New in this alarm* or a new comment, now answers the message of its thing and has ⬇️ Show, which brings that message with its buttons to the end of its topic. When a message of a thing is sent anew, the old one also loses its buttons when it is older than 48 hours. A topic that a thing left behind is renamed *↪️ Moved*, and its old message there loses its buttons.
+- A report of a run in its topic, such as *🧾 Run: Night run*, now has 🗑 Delete topic, and where the instance sets `DONE_TOPIC_HOURS`, its topic goes by itself once those hours are over, as the topic of a done thing does. The topics of the reports from before this version can't be found by the pager: delete those by hand once.
 
 ## [0.12.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.1...v0.12.0) (2026-11-17)
 
