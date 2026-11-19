@@ -225,10 +225,13 @@ const OBSERVABILITY = (
 const INVOCATIONS = OBSERVABILITY?.logs?.invocation_logs !== false;
 
 /**
- * A generous size of one event of Workers Logs, for the ingestion of Cloudflare
+ * The size of one event of Workers Logs, for the ingestion of Cloudflare
  * Observability, which counts the uncompressed size of each event with the
- * attributes that Cloudflare adds to it: the pager's lines are short, and the test
- * of a failure below holds each under a tenth of this.
+ * attributes that Cloudflare adds to it. It is about what an event took while the
+ * invocation logs were on: about 0.74 GB for the 200,000 events of 2026-11-16 on
+ * the usage page of Cloudflare, 3.7 to 4 KB each. What a line of the pager takes
+ * isn't measured; its text is short, and the test of a failure below holds each
+ * under a tenth of this.
  */
 const EVENT_BYTES = 4_096;
 
