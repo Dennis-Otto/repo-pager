@@ -44,6 +44,7 @@ import {
   type Sweep,
 } from "../src/sweep.ts";
 import { languageOf, texts } from "../src/texts.ts";
+import { remindTokens } from "../src/tokens.ts";
 import { topicName } from "../src/topics.ts";
 import wrangler from "../wrangler.jsonc?raw";
 import {
@@ -1103,25 +1104,38 @@ describe("a busy day of a fleet", () => {
    * its 96 runs at every bound of src/sweep.ts at once: a page of links, each of
    * which takes two reads, the most topics that a run deletes, and the most
    * records that it writes. The day itself is the same, so the sweep adds only
-   * what its run costs beyond a run without it.
+   * what its run costs beyond a run without it. Its first run is at `start`, by
+   * default the clock of the machine, by which Workers KV keeps the time of expiry
+   * of a link.
    */
-  async function sweepDay(): Promise<Cost> {
+  async function sweepDay(start = Date.now()): Promise<Cost> {
     const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
     const settings = { ...(await settingsOf()), doneTopicHours: hours };
-    // Workers KV keeps the time of expiry of a link by the clock of the machine.
-    clock.now = Date.now();
+    clock.now = start;
     const first = clock.now;
     // The first run notes when the sweep starts.
     await scheduled();
-    const { store } = makeContext(
-      settings,
-      env as PagerEnv,
-      net.fetch,
-      () => clock.now,
-      async () => {},
-      undefined,
-      local,
-    );
+    const uncounted = () =>
+      makeContext(
+        settings,
+        env as PagerEnv,
+        net.fetch,
+        () => clock.now,
+        async () => {},
+        undefined,
+        local,
+      );
+    const { store } = uncounted();
+    // The first run of a UTC day checks GITHUB_USER_TOKEN and shows the reminders
+    // of the tokens that are due that day, with a row of its own, which a day
+    // counts once, sweep or not. Before each of the two runs that are compared, the
+    // step of the tokens has its turn at the time of that run, uncounted, so that
+    // neither carries the row of the day, wherever 00:00 UTC falls.
+    const tokensOfTheDay = () =>
+      remindTokens(uncounted(), async (_thing, work) => {
+        await work();
+        return true;
+      });
     // A link that was done a day before the first run, and lives 29 days more.
     const expiration = Math.floor((first - DAY_MS + LINK_LIFE) / 1000);
     const thing = (thread: number, state: string): Item =>
@@ -1160,6 +1174,7 @@ describe("a busy day of a fleet", () => {
     clock.now = first + hours * 60 * 60_000 - 15 * 60_000;
     await scheduled();
     clock.now += 15 * 60_000;
+    await tokensOfTheDay();
     const run = await scheduled();
     expect(
       net.calls.filter((call) => call.url.endsWith("/deleteForumTopic")),
@@ -1171,6 +1186,7 @@ describe("a busy day of a fleet", () => {
       ended: clock.now,
     });
     clock.now += 15 * 60_000;
+    await tokensOfTheDay();
     const after = await scheduled();
     expect(after).toEqual({
       ...nothing(),
@@ -1185,16 +1201,18 @@ describe("a busy day of a fleet", () => {
     return extra;
   }
 
+  /** The numbers of docs/costs.md: a list, 40 reads, 3 writes and a row a run. */
+  const swept = (): Cost => ({
+    ...nothing(),
+    kvReads: 2 * SWEEP_PAGE * DAY.schedules,
+    kvWrites: SWEEP_WRITES * DAY.schedules,
+    kvLists: DAY.schedules,
+    rowsWritten: DAY.schedules,
+  });
+
   it("stays below a third of each daily limit with a day of the sweep of the old topics", async () => {
     const extra = await sweepDay();
-    // The numbers of docs/costs.md: a list, 40 reads, 3 writes and a row a run.
-    expect(extra).toEqual({
-      ...nothing(),
-      kvReads: 2 * SWEEP_PAGE * DAY.schedules,
-      kvWrites: SWEEP_WRITES * DAY.schedules,
-      kvLists: DAY.schedules,
-      rowsWritten: DAY.schedules,
-    });
+    expect(extra).toEqual(swept());
     clock.now = START;
     local = new Memory();
     const total = await day();
@@ -1202,6 +1220,26 @@ describe("a busy day of a fleet", () => {
       expect(total[limit] + extra[limit], limit).toBeLessThan(FREE[limit] / 3);
     }
   });
+
+  // The two runs that are compared come at the start of the sweep and a quarter of
+  // an hour after it, and the run before them a quarter of an hour before the start:
+  // 00:00 UTC falls the given minutes before the start.
+  it.each([
+    ["before the run before the start", 30],
+    ["between the run before the start and the run at it", 5],
+    ["between the run at the start and the run after it", -5],
+    ["after the three runs", -30],
+  ])(
+    "costs as much with a day of the sweep whatever the time, with 00:00 UTC %s",
+    async (_, minutes) => {
+      const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
+      // The next 00:00 UTC by the clock of the machine, by which Workers KV keeps
+      // the times of expiry of the links.
+      const midnight = (Math.floor(Date.now() / DAY_MS) + 1) * DAY_MS;
+      const start = midnight - hours * 60 * 60_000 + minutes * 60_000;
+      expect(await sweepDay(start)).toEqual(swept());
+    },
+  );
 
   it("stays below the limits on the busiest day of the week with a day of the sweep", async () => {
     const extra = await sweepDay();
