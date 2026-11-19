@@ -1098,6 +1098,8 @@ describe("a busy day of a fleet", () => {
   });
 
   const DAY_MS = 24 * 60 * 60_000;
+  // The environment of the tests, whose CLAUDE_TOKEN_EXPIRES a test may change.
+  const vars = env as { CLAUDE_TOKEN_EXPIRES: string };
 
   /**
    * What a day of the sweep of the topics done before this version adds, each of
@@ -1109,6 +1111,20 @@ describe("a busy day of a fleet", () => {
    * of a link.
    */
   async function sweepDay(start = Date.now()): Promise<Cost> {
+    // The reminder of the token of Claude, in the 21 days before
+    // CLAUDE_TOKEN_EXPIRES, is a thing of its own that each later run reads, and
+    // has nothing to do with the sweep: without it, the day of the sweep costs the
+    // same on every date, as with the settings of another instance.
+    const expires = vars.CLAUDE_TOKEN_EXPIRES;
+    vars.CLAUDE_TOKEN_EXPIRES = "";
+    try {
+      return await sweptFrom(start);
+    } finally {
+      vars.CLAUDE_TOKEN_EXPIRES = expires;
+    }
+  }
+
+  async function sweptFrom(start: number): Promise<Cost> {
     const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
     const settings = { ...(await settingsOf()), doneTopicHours: hours };
     clock.now = start;
@@ -1126,9 +1142,8 @@ describe("a busy day of a fleet", () => {
         local,
       );
     const { store } = uncounted();
-    // The first run of a UTC day checks GITHUB_USER_TOKEN and shows the reminders
-    // of the tokens that are due that day, with a row of its own, which a day
-    // counts once, sweep or not. Before each of the two runs that are compared, the
+    // The first run of a UTC day checks GITHUB_USER_TOKEN, with a row of its own,
+    // which a day counts once, sweep or not. Before each of the two runs that are compared, the
     // step of the tokens has its turn at the time of that run, uncounted, so that
     // neither carries the row of the day, wherever 00:00 UTC falls.
     const tokensOfTheDay = () =>
@@ -1221,9 +1236,10 @@ describe("a busy day of a fleet", () => {
     }
   });
 
-  // The two runs that are compared come at the start of the sweep and a quarter of
-  // an hour after it, and the run before them a quarter of an hour before the start:
-  // 00:00 UTC falls the given minutes before the start.
+  // The two runs that are compared come at the start of the sweep, DONE_TOPIC_HOURS
+  // after the first run, and a quarter of an hour after it, and the run before them
+  // a quarter of an hour before the start of the sweep: 00:00 UTC falls the given
+  // minutes before the start of the sweep.
   it.each([
     ["before the run before the start", 30],
     ["between the run before the start and the run at it", 5],
@@ -1238,6 +1254,29 @@ describe("a busy day of a fleet", () => {
       const midnight = (Math.floor(Date.now() / DAY_MS) + 1) * DAY_MS;
       const start = midnight - hours * 60 * 60_000 + minutes * 60_000;
       expect(await sweepDay(start)).toEqual(swept());
+    },
+  );
+
+  it.each([
+    ["before the sweep", 30],
+    ["between the compared runs", -5],
+  ])(
+    "costs as much with a day of the sweep in the days of the reminder of the Claude token, from 00:00 UTC %s",
+    async (_, minutes) => {
+      const hours = doneTopicHoursOf(env.DONE_TOPIC_HOURS) as number;
+      const midnight = (Math.floor(Date.now() / DAY_MS) + 1) * DAY_MS;
+      // From this 00:00 UTC on, the token of Claude expires in 21 days.
+      const expires = vars.CLAUDE_TOKEN_EXPIRES;
+      vars.CLAUDE_TOKEN_EXPIRES = new Date(midnight + 21 * DAY_MS)
+        .toISOString()
+        .slice(0, 10);
+      try {
+        const start = midnight - hours * 60 * 60_000 + minutes * 60_000;
+        expect(await sweepDay(start)).toEqual(swept());
+        expect(vars.CLAUDE_TOKEN_EXPIRES).not.toBe("");
+      } finally {
+        vars.CLAUDE_TOKEN_EXPIRES = expires;
+      }
     },
   );
 
