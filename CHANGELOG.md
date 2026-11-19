@@ -7,6 +7,14 @@ requests when there is none.
 
 ## Unreleased
 
+## [0.13.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.12.0...v0.13.0) (2026-11-19)
+
+
+### Features
+
+* a notice answers its thing and brings its message back with ⬇️ Show ([#263](https://github.com/Dennis-Otto/repo-pager/issues/263)) ([b47cee7](https://github.com/Dennis-Otto/repo-pager/commit/b47cee751bd9b4c7f39b1294426c19b435fdd623))
+* the topic of a report of a run goes with 🗑 Delete topic and after the hours of the instance ([#265](https://github.com/Dennis-Otto/repo-pager/issues/265)) ([d4b33a7](https://github.com/Dennis-Otto/repo-pager/commit/d4b33a76fc74aabc9e08db8d46290ceb96d0d3b9))
+
 ## [0.12.0](https://github.com/Dennis-Otto/repo-pager/compare/v0.11.1...v0.12.0) (2026-11-17)
 
 ### Features
